@@ -31,4 +31,4 @@ ENV UPLOADS_DIR=/data/uploads
 EXPOSE 3000
 
 # Run migrations on every boot (idempotent), then start Next.js.
-CMD ["sh", "-c", "pnpm db:migrate && pnpm start"]
+CMD ["sh", "-c", "echo '>>> Running migrations...' && pnpm db:migrate && echo '>>> Starting Next.js on 0.0.0.0:'${PORT:-3000} && pnpm start"]
