@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: rme-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rme
+      POSTGRES_PASSWORD: rme
+      POSTGRES_DB: rme
+    ports:
+      - "5432:5432"
+    volumes:
+      - rme-pgdata:/var/lib/postgresql/data
+
+volumes:
+  rme-pgdata:
