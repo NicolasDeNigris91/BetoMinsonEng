@@ -14,6 +14,14 @@ RUN pnpm install --frozen-lockfile --prod=false --config.dangerouslyAllowAllBuil
 
 COPY . .
 
+# Build-time placeholders only. Railway's runtime env vars override these in production.
+# next build evaluates route modules to collect page data, so DATABASE_URL etc. need to be
+# defined; their values are never used because no DB queries run during build.
+ENV DATABASE_URL=postgres://build-placeholder@localhost:5432/build
+ENV APP_PASSWORD=build-placeholder
+ENV SESSION_SECRET=build_placeholder_secret_at_least_32_chars_long_xxxxxx
+ENV BASE_URL=http://localhost:3000
+
 RUN pnpm build
 
 # Pre-create the uploads directory; in production Railway mounts a Volume here.
