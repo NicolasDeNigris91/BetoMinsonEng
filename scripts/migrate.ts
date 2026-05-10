@@ -8,6 +8,14 @@ async function main() {
     console.error("[migrate] DATABASE_URL not set");
     process.exit(1);
   }
+  if (url.includes("build-placeholder") || url.includes("placeholder")) {
+    console.error(
+      "[migrate] DATABASE_URL is still the build-time placeholder.\n" +
+        "  In Railway, the Next.js service Variables panel must have\n" +
+        "  DATABASE_URL referencing ${{Postgres.DATABASE_URL}} (not a literal).",
+    );
+    process.exit(1);
+  }
 
   console.log("[migrate] Connecting to database...");
   const sql = postgres(url, { max: 1, onnotice: () => {} });
