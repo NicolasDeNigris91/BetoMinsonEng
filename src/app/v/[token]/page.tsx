@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { eq, and, gt, asc } from "drizzle-orm";
 import { FileDown, Lock } from "lucide-react";
@@ -49,8 +50,16 @@ export default async function SharePage({
   if (!share) {
     return (
       <div className="flex flex-1 min-h-screen items-center justify-center p-6">
-        <div className="text-center max-w-sm">
-          <Lock className="mx-auto size-12 text-muted-foreground" />
+        <div className="text-center max-w-sm flex flex-col items-center">
+          <Image
+            src="/logo-diminson.png"
+            alt="DiMinson Engenharia"
+            width={300}
+            height={96}
+            priority
+            className="h-10 w-auto mb-6"
+          />
+          <Lock className="size-12 text-muted-foreground" />
           <h1 className="mt-4 text-lg font-semibold">Link inválido ou expirado</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Este link de compartilhamento não está mais ativo. Entre em contato
@@ -96,7 +105,15 @@ export default async function SharePage({
   return (
     <div className="flex min-h-screen flex-col bg-muted/30">
       <header className="bg-background border-b">
-        <div className="mx-auto max-w-4xl px-4 py-6">
+        <div className="mx-auto max-w-4xl px-4 py-6 space-y-4">
+          <Image
+            src="/logo-diminson.png"
+            alt="DiMinson Engenharia"
+            width={300}
+            height={96}
+            priority
+            className="h-10 w-auto"
+          />
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground">

@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RME — Vistorias",
-  description: "Sistema interno de vistorias",
+  title: "DiMinson Engenharia — Vistorias",
+  description: "Sistema de vistorias de instalações",
   robots: { index: false, follow: false },
 };
 

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { eq, and, gt, asc } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -131,6 +133,15 @@ export async function GET(
       logoDataUri = emp.logoUrl;
     } else if (!emp.logoUrl.startsWith("http")) {
       logoDataUri = await fileToDataUri(emp.logoUrl);
+    }
+  }
+  if (!logoDataUri) {
+    try {
+      const brandPath = path.join(process.cwd(), "public", "logo-diminson.png");
+      const buf = await readFile(brandPath);
+      logoDataUri = `data:image/png;base64,${buf.toString("base64")}`;
+    } catch {
+      // fallback to text rendering in the template if logo is unavailable
     }
   }
 
