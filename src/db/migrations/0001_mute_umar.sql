@@ -1,0 +1,1 @@
+ALTER TABLE "share_tokens" ADD COLUMN "permite_upload" boolean DEFAULT false NOT NULL;

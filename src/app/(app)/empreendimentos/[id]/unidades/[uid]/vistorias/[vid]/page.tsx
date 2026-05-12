@@ -17,6 +17,7 @@ import { env } from "@/lib/env";
 import { formatDateBR } from "@/lib/format";
 import { AchadoChecklistRow } from "./achado-checklist-row";
 import { AchadoFormDialog } from "./novo-achado-dialog";
+import { MobileUploadButton } from "./mobile-upload-button";
 import { NovoAchadoCard } from "./novo-achado-card";
 import { ObservacoesField } from "./observacoes-field";
 import { SharePanel } from "./share-panel";
@@ -82,7 +83,7 @@ export default async function VistoriaPage({
     .where(eq(achados.vistoriaOrigemId, vid))
     .orderBy(asc(achados.categoria), asc(achados.createdAt));
 
-  const activeShareTokens = await db
+  const allActiveTokens = await db
     .select()
     .from(shareTokens)
     .where(
@@ -92,6 +93,10 @@ export default async function VistoriaPage({
       ),
     )
     .orderBy(desc(shareTokens.criadoEm));
+
+  const activeShareTokens = allActiveTokens.filter((t) => !t.permiteUpload);
+  const activeUploadToken =
+    allActiveTokens.find((t) => t.permiteUpload) ?? null;
 
   const isDraft = vistoria.status === "rascunho";
 
@@ -134,7 +139,23 @@ export default async function VistoriaPage({
             </p>
           ) : null}
         </div>
-        <VistoriaActionsBar vistoriaId={vistoria.id} status={vistoria.status} />
+        <div className="flex flex-wrap items-start gap-2">
+          {isDraft ? (
+            <MobileUploadButton
+              vistoriaId={vistoria.id}
+              baseUrl={env.BASE_URL}
+              activeToken={
+                activeUploadToken
+                  ? {
+                      token: activeUploadToken.token,
+                      expiraEm: activeUploadToken.expiraEm.toISOString(),
+                    }
+                  : null
+              }
+            />
+          ) : null}
+          <VistoriaActionsBar vistoriaId={vistoria.id} status={vistoria.status} />
+        </div>
       </div>
 
       <ObservacoesField

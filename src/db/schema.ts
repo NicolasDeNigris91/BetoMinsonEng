@@ -8,6 +8,7 @@ import {
   timestamp,
   date,
   integer,
+  boolean,
   index,
 } from "drizzle-orm/pg-core";
 
@@ -166,6 +167,7 @@ export const shareTokens = pgTable(
       .references(() => vistorias.id, { onDelete: "cascade" }),
     token: varchar("token", { length: 64 }).notNull().unique(),
     expiraEm: timestamp("expira_em", { withTimezone: true }).notNull(),
+    permiteUpload: boolean("permite_upload").default(false).notNull(),
     criadoEm: timestamp("criado_em", { withTimezone: true })
       .defaultNow()
       .notNull(),

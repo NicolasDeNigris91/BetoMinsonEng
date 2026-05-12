@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { db } from "@/db";
-import { achadoEventos, fotos, vistorias } from "@/db/schema";
+import { achadoEventos, fotos, shareTokens, vistorias } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
 import { processImage } from "@/lib/images";
 import { saveFile } from "@/lib/storage";
@@ -14,17 +14,34 @@ const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/
 const querySchema = z.object({
   achadoEventoId: z.string().uuid(),
   legenda: z.string().optional(),
+  uploadToken: z.string().optional(),
 });
 
-export async function POST(req: Request) {
-  if (!(await isLoggedIn())) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
+async function uploadTokenAllowsVistoria(
+  token: string,
+  vistoriaId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: shareTokens.id })
+    .from(shareTokens)
+    .where(
+      and(
+        eq(shareTokens.token, token),
+        eq(shareTokens.vistoriaId, vistoriaId),
+        eq(shareTokens.permiteUpload, true),
+        gt(shareTokens.expiraEm, new Date()),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
 
+export async function POST(req: Request) {
   const form = await req.formData();
   const params = querySchema.safeParse({
     achadoEventoId: form.get("achadoEventoId"),
     legenda: form.get("legenda") ?? undefined,
+    uploadToken: form.get("uploadToken") ?? undefined,
   });
 
   if (!params.success) {
@@ -73,6 +90,15 @@ export async function POST(req: Request) {
       { error: "Vistoria finalizada. Reabra antes de adicionar fotos." },
       { status: 409 },
     );
+  }
+
+  const sessionOk = await isLoggedIn();
+  const tokenOk = params.data.uploadToken
+    ? await uploadTokenAllowsVistoria(params.data.uploadToken, evento.vistoriaId)
+    : false;
+
+  if (!sessionOk && !tokenOk) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
