@@ -42,7 +42,7 @@ export async function generateMetadata({
 
   if (!row) {
     return {
-      title: "Vistoria — DiMinson Engenharia",
+      title: "Link inválido",
       robots: { index: false, follow: false },
     };
   }
