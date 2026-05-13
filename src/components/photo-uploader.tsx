@@ -253,6 +253,8 @@ function FotoCard({
           <img
             src={fileUrl(foto.thumbPath, shareToken)}
             alt={foto.legenda ?? ""}
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover"
           />
         </a>

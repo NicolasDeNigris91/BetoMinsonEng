@@ -253,6 +253,8 @@ export default async function SharePage({
                               <img
                                 src={`/api/files/${f.thumbPath}?token=${encodeURIComponent(token)}`}
                                 alt={f.legenda ?? ""}
+                                loading="lazy"
+                                decoding="async"
                                 className="aspect-square w-full rounded-md border object-cover"
                               />
                             </a>
