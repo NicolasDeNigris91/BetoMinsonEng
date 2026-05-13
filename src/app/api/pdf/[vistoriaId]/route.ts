@@ -183,12 +183,14 @@ export async function GET(
     );
   }
 
-  const filename = `vistoria-${unidade.nome.replace(/[^a-z0-9-_]+/gi, "_")}-${vistoria.data}.pdf`;
+  const sanitize = (s: string) => s.replace(/[^a-z0-9-_]+/gi, "_");
+  const filename = `vistoria-${sanitize(emp.nome)}-${sanitize(unidade.nome)}-${vistoria.data}.pdf`;
 
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${filename}"`,
+      "Cache-Control": "no-store",
       "X-Robots-Tag": "noindex, nofollow",
     },
   });
