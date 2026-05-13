@@ -5,7 +5,14 @@ type SessionData = {
   loggedInAt?: number;
 };
 
-const PUBLIC_PATHS = ["/login", "/v/", "/_next/", "/favicon.ico", "/robots.txt"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/v/",
+  "/_next/",
+  "/favicon.ico",
+  "/robots.txt",
+  "/api/health",
+];
 
 function readSessionSecret(): string {
   const secret = process.env.SESSION_SECRET;
