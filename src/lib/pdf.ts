@@ -2,7 +2,6 @@ import "server-only";
 import { chromium, type Browser } from "playwright";
 
 declare global {
-  // eslint-disable-next-line no-var
   var __pwBrowser: Browser | null | undefined;
 }
 
