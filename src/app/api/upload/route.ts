@@ -6,9 +6,19 @@ import { db } from "@/db";
 import { achadoEventos, fotos, shareTokens, vistorias } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
 import { processImage } from "@/lib/images";
+import { rateLimit } from "@/lib/rate-limit";
 import { saveFile } from "@/lib/storage";
 
 const MAX_BYTES = 15 * 1024 * 1024;
+const UPLOAD_RATE_LIMIT = 200;
+const UPLOAD_RATE_WINDOW_MS = 5 * 60 * 1000;
+
+function clientKey(req: Request, uploadToken: string | null): string {
+  if (uploadToken) return `upload:t:${uploadToken}`;
+  const xff = req.headers.get("x-forwarded-for");
+  const ip = xff?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+  return `upload:ip:${ip}`;
+}
 
 const formSchema = z.object({
   achadoEventoId: z.string().uuid(),
@@ -41,6 +51,21 @@ export async function POST(req: Request) {
   const sessionOk = await isLoggedIn();
   if (!sessionOk && !uploadToken) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const limit = rateLimit({
+    key: clientKey(req, uploadToken),
+    limit: UPLOAD_RATE_LIMIT,
+    windowMs: UPLOAD_RATE_WINDOW_MS,
+  });
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: `Muitos uploads. Aguarde ${limit.retryAfterSec}s.` },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limit.retryAfterSec) },
+      },
+    );
   }
 
   const contentLength = Number(req.headers.get("content-length") ?? 0);

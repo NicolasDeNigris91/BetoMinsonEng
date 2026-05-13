@@ -13,6 +13,13 @@ type Window = {
 };
 
 const buckets = new Map<string, Window>();
+const CLEANUP_THRESHOLD = 10_000;
+
+function sweepExpired(now: number): void {
+  for (const [k, w] of buckets) {
+    if (w.resetAt < now) buckets.delete(k);
+  }
+}
 
 export type RateLimitResult = {
   allowed: boolean;
@@ -32,6 +39,7 @@ export function rateLimit({
   const w = buckets.get(key);
 
   if (!w || w.resetAt < now) {
+    if (buckets.size > CLEANUP_THRESHOLD) sweepExpired(now);
     buckets.set(key, { count: 1, resetAt: now + windowMs });
     return { allowed: true, retryAfterSec: 0 };
   }
