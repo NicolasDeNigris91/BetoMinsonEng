@@ -6,7 +6,6 @@ import {
   achados,
   fotos,
   shareTokens,
-  vistorias,
 } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
 import { fileExists, readFileBuffer } from "@/lib/storage";
@@ -42,38 +41,31 @@ async function isAccessibleViaToken(
 
   if (!row) return false;
 
-  const [foto] = await db
-    .select({ vistoriaId: achadoEventos.vistoriaId })
-    .from(fotos)
-    .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
-    .where(eq(fotos.arquivoPath, relativePath))
-    .limit(1);
+  const [byArquivo, byThumb, byAchadoOrigem] = await Promise.all([
+    db
+      .select({ vistoriaId: achadoEventos.vistoriaId })
+      .from(fotos)
+      .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
+      .where(eq(fotos.arquivoPath, relativePath))
+      .limit(1),
+    db
+      .select({ vistoriaId: achadoEventos.vistoriaId })
+      .from(fotos)
+      .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
+      .where(eq(fotos.thumbPath, relativePath))
+      .limit(1),
+    db
+      .select({ vistoriaOrigemId: achados.vistoriaOrigemId })
+      .from(fotos)
+      .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
+      .innerJoin(achados, eq(achados.id, achadoEventos.achadoId))
+      .where(eq(fotos.arquivoPath, relativePath))
+      .limit(1),
+  ]);
 
-  if (foto && foto.vistoriaId === row.vistoriaId) return true;
-
-  // Also allow thumbnails of the vistoria
-  const [fotoThumb] = await db
-    .select({ vistoriaId: achadoEventos.vistoriaId })
-    .from(fotos)
-    .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
-    .where(eq(fotos.thumbPath, relativePath))
-    .limit(1);
-
-  if (fotoThumb && fotoThumb.vistoriaId === row.vistoriaId) return true;
-
-  // Photos from achados visible in vistoria via "persiste" or "criado" event in same vistoria
-  const [evento] = await db
-    .select({
-      vistoriaOrigemId: achados.vistoriaOrigemId,
-    })
-    .from(fotos)
-    .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
-    .innerJoin(achados, eq(achados.id, achadoEventos.achadoId))
-    .innerJoin(vistorias, eq(vistorias.id, achadoEventos.vistoriaId))
-    .where(eq(fotos.arquivoPath, relativePath))
-    .limit(1);
-
-  if (evento && evento.vistoriaOrigemId === row.vistoriaId) return true;
+  if (byArquivo[0]?.vistoriaId === row.vistoriaId) return true;
+  if (byThumb[0]?.vistoriaId === row.vistoriaId) return true;
+  if (byAchadoOrigem[0]?.vistoriaOrigemId === row.vistoriaId) return true;
 
   return false;
 }
@@ -103,7 +95,7 @@ export async function GET(
   const buffer = await readFileBuffer(relativePath);
   const ext = relativePath.split(".").pop() ?? "";
 
-  return new NextResponse(buffer as unknown as BodyInit, {
+  return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": contentTypeForExt(ext),
       "Cache-Control": "private, max-age=3600",
