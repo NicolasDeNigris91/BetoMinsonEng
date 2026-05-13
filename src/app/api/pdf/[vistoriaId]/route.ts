@@ -65,62 +65,71 @@ export async function GET(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const [vistoria] = await db
-    .select()
-    .from(vistorias)
-    .where(eq(vistorias.id, vistoriaId))
-    .limit(1);
+  const [[vistoria], eventos] = await Promise.all([
+    db
+      .select()
+      .from(vistorias)
+      .where(eq(vistorias.id, vistoriaId))
+      .limit(1),
+    db.query.achadoEventos.findMany({
+      where: eq(achadoEventos.vistoriaId, vistoriaId),
+      with: { fotos: { orderBy: asc(fotos.ordem) }, achado: true },
+      orderBy: asc(achadoEventos.createdAt),
+    }),
+  ]);
 
   if (!vistoria) {
     return NextResponse.json({ error: "vistoria não encontrada" }, { status: 404 });
   }
 
-  const [unidade] = await db
-    .select()
-    .from(unidades)
-    .where(eq(unidades.id, vistoria.unidadeId))
-    .limit(1);
-  const [emp] = unidade
-    ? await db
-        .select()
-        .from(empreendimentos)
-        .where(eq(empreendimentos.id, unidade.empreendimentoId))
-        .limit(1)
-    : [];
+  const [[unidade], [emp]] = await Promise.all([
+    db
+      .select()
+      .from(unidades)
+      .where(eq(unidades.id, vistoria.unidadeId))
+      .limit(1),
+    db
+      .select()
+      .from(empreendimentos)
+      .innerJoin(unidades, eq(empreendimentos.id, unidades.empreendimentoId))
+      .where(eq(unidades.id, vistoria.unidadeId))
+      .limit(1)
+      .then((rows) =>
+        rows.map((r) => r.empreendimentos),
+      ),
+  ]);
 
   if (!unidade || !emp) {
     return NextResponse.json({ error: "dados ausentes" }, { status: 404 });
   }
 
-  const eventos = await db.query.achadoEventos.findMany({
-    where: eq(achadoEventos.vistoriaId, vistoriaId),
-    with: { fotos: { orderBy: asc(fotos.ordem) }, achado: true },
-    orderBy: asc(achadoEventos.createdAt),
-  });
+  const rows: PdfRow[] = await Promise.all(
+    eventos
+      .filter((ev) => ev.achado != null)
+      .map(async (ev) => {
+        const fotosWithData = (
+          await Promise.all(
+            ev.fotos.map(async (f) => {
+              const dataUri = await fileToDataUri(f.thumbPath);
+              return dataUri ? { dataUri, legenda: f.legenda } : null;
+            }),
+          )
+        ).filter((x): x is PdfFoto => x !== null);
 
-  const rows: PdfRow[] = [];
-  for (const ev of eventos) {
-    if (!ev.achado) continue;
-    const fotosWithData: PdfFoto[] = [];
-    for (const f of ev.fotos) {
-      const dataUri = await fileToDataUri(f.thumbPath);
-      if (dataUri) {
-        fotosWithData.push({ dataUri, legenda: f.legenda });
-      }
-    }
-    rows.push({
-      achadoId: ev.achado.id,
-      categoria: ev.achado.categoria,
-      local: ev.achado.local,
-      descricao: ev.achado.descricao,
-      evento: {
-        id: ev.id,
-        tipo: ev.tipo,
-        notaExtra: ev.notaExtra,
-        fotos: fotosWithData,
-      },
-    });
-  }
+        return {
+          achadoId: ev.achado!.id,
+          categoria: ev.achado!.categoria,
+          local: ev.achado!.local,
+          descricao: ev.achado!.descricao,
+          evento: {
+            id: ev.id,
+            tipo: ev.tipo,
+            notaExtra: ev.notaExtra,
+            fotos: fotosWithData,
+          },
+        };
+      }),
+  );
 
   rows.sort((a, b) => {
     if (a.categoria !== b.categoria) return a.categoria.localeCompare(b.categoria);
@@ -167,19 +176,16 @@ export async function GET(
   try {
     pdf = await renderHtmlToPdf(html);
   } catch (err) {
-    console.error("PDF render error", err);
+    console.error("[pdf] render failed", err);
     return NextResponse.json(
-      {
-        error: "Falha ao gerar PDF",
-        detail: err instanceof Error ? err.message : String(err),
-      },
+      { error: "Falha ao gerar PDF" },
       { status: 500 },
     );
   }
 
   const filename = `vistoria-${unidade.nome.replace(/[^a-z0-9-_]+/gi, "_")}-${vistoria.data}.pdf`;
 
-  return new NextResponse(pdf as unknown as BodyInit, {
+  return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${filename}"`,

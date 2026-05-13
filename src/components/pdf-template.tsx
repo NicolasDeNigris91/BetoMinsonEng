@@ -48,7 +48,7 @@ function escapeHtml(value: string): string {
 }
 
 function escapeAttr(value: string): string {
-  return value.replace(/"/g, "&quot;").replace(/&/g, "&amp;");
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
 function eventoBadge(tipo: EventoTipo): string | null {
