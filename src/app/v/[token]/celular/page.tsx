@@ -86,27 +86,28 @@ export default async function MobileUploadPage({
     );
   }
 
-  const [unidade] = await db
-    .select()
-    .from(unidades)
-    .where(eq(unidades.id, vistoria.unidadeId))
-    .limit(1);
-  const [emp] = unidade
-    ? await db
-        .select()
-        .from(empreendimentos)
-        .where(eq(empreendimentos.id, unidade.empreendimentoId))
-        .limit(1)
-    : [undefined];
-
-  const eventos = await db.query.achadoEventos.findMany({
-    where: eq(achadoEventos.vistoriaId, vistoria.id),
-    with: {
-      fotos: { orderBy: asc(fotos.ordem) },
-      achado: true,
-    },
-    orderBy: asc(achadoEventos.createdAt),
-  });
+  const [[unidade], empRow, eventos] = await Promise.all([
+    db
+      .select()
+      .from(unidades)
+      .where(eq(unidades.id, vistoria.unidadeId))
+      .limit(1),
+    db
+      .select()
+      .from(empreendimentos)
+      .innerJoin(unidades, eq(unidades.empreendimentoId, empreendimentos.id))
+      .where(eq(unidades.id, vistoria.unidadeId))
+      .limit(1),
+    db.query.achadoEventos.findMany({
+      where: eq(achadoEventos.vistoriaId, vistoria.id),
+      with: {
+        fotos: { orderBy: asc(fotos.ordem) },
+        achado: true,
+      },
+      orderBy: asc(achadoEventos.createdAt),
+    }),
+  ]);
+  const emp = empRow[0]?.empreendimentos;
 
   const items = eventos
     .filter((ev) => ev.achado != null)

@@ -70,35 +70,38 @@ export default async function SharePage({
     );
   }
 
-  const [vistoria] = await db
-    .select()
-    .from(vistorias)
-    .where(eq(vistorias.id, share.vistoriaId))
-    .limit(1);
+  const [[vistoria], eventos] = await Promise.all([
+    db
+      .select()
+      .from(vistorias)
+      .where(eq(vistorias.id, share.vistoriaId))
+      .limit(1),
+    db.query.achadoEventos.findMany({
+      where: eq(achadoEventos.vistoriaId, share.vistoriaId),
+      with: {
+        fotos: { orderBy: asc(fotos.ordem) },
+        achado: true,
+      },
+      orderBy: asc(achadoEventos.createdAt),
+    }),
+  ]);
   if (!vistoria) notFound();
 
-  const [unidade] = await db
-    .select()
-    .from(unidades)
-    .where(eq(unidades.id, vistoria.unidadeId))
-    .limit(1);
-  if (!unidade) notFound();
-
-  const [emp] = await db
-    .select()
-    .from(empreendimentos)
-    .where(eq(empreendimentos.id, unidade.empreendimentoId))
-    .limit(1);
-  if (!emp) notFound();
-
-  const eventos = await db.query.achadoEventos.findMany({
-    where: eq(achadoEventos.vistoriaId, vistoria.id),
-    with: {
-      fotos: { orderBy: asc(fotos.ordem) },
-      achado: true,
-    },
-    orderBy: asc(achadoEventos.createdAt),
-  });
+  const [[unidade], empRow] = await Promise.all([
+    db
+      .select()
+      .from(unidades)
+      .where(eq(unidades.id, vistoria.unidadeId))
+      .limit(1),
+    db
+      .select()
+      .from(empreendimentos)
+      .innerJoin(unidades, eq(unidades.empreendimentoId, empreendimentos.id))
+      .where(eq(unidades.id, vistoria.unidadeId))
+      .limit(1),
+  ]);
+  const emp = empRow[0]?.empreendimentos;
+  if (!unidade || !emp) notFound();
 
   const visibleEventos = eventos.filter((e) => e.achado != null);
 
