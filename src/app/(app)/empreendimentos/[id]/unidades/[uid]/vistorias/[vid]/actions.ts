@@ -5,14 +5,13 @@ import { redirect } from "next/navigation";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import {
-  achadoEventos,
-  achados,
-  unidades,
-  vistorias,
-  categoriaEnum,
-} from "@/db/schema";
+import { achadoEventos, achados, vistorias, categoriaEnum } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
+import {
+  vistoriaContext,
+  vistoriaPath,
+  type VistoriaCtx,
+} from "@/lib/vistoria-context";
 
 const novoAchadoSchema = z.object({
   categoria: z.enum(categoriaEnum.enumValues),
@@ -25,36 +24,8 @@ export type NovoAchadoState = {
   error?: string;
 };
 
-async function getVistoriaContext(vistoriaId: string) {
-  const [v] = await db
-    .select({
-      id: vistorias.id,
-      status: vistorias.status,
-      unidadeId: vistorias.unidadeId,
-    })
-    .from(vistorias)
-    .where(eq(vistorias.id, vistoriaId))
-    .limit(1);
-
-  if (!v) throw new Error("Vistoria não encontrada.");
-
-  const [u] = await db
-    .select({ empreendimentoId: unidades.empreendimentoId })
-    .from(unidades)
-    .where(eq(unidades.id, v.unidadeId))
-    .limit(1);
-
-  if (!u) throw new Error("Unidade não encontrada.");
-
-  return {
-    vistoria: v,
-    empreendimentoId: u.empreendimentoId,
-    pathBase: `/empreendimentos/${u.empreendimentoId}/unidades/${v.unidadeId}/vistorias/${v.id}`,
-  };
-}
-
-function assertEditable(status: "rascunho" | "finalizada") {
-  if (status !== "rascunho") {
+function assertEditable(ctx: VistoriaCtx) {
+  if (ctx.vistoriaStatus !== "rascunho") {
     throw new Error("Vistoria já finalizada. Reabra antes de editar.");
   }
 }
@@ -65,8 +36,8 @@ export async function setAchadoStateInVistoriaAction(
   state: "none" | "persiste" | "resolvido" | "nota",
 ): Promise<void> {
   await requireSession();
-  const ctx = await getVistoriaContext(vistoriaId);
-  assertEditable(ctx.vistoria.status);
+  const ctx = await vistoriaContext(vistoriaId);
+  assertEditable(ctx);
 
   await db.transaction(async (tx) => {
     const existing = await tx
@@ -124,7 +95,7 @@ export async function setAchadoStateInVistoriaAction(
     }
   });
 
-  revalidatePath(ctx.pathBase);
+  revalidatePath(vistoriaPath(ctx));
 }
 
 export async function createAchadoAction(
@@ -133,8 +104,8 @@ export async function createAchadoAction(
   formData: FormData,
 ): Promise<NovoAchadoState> {
   await requireSession();
-  const ctx = await getVistoriaContext(vistoriaId);
-  assertEditable(ctx.vistoria.status);
+  const ctx = await vistoriaContext(vistoriaId);
+  assertEditable(ctx);
 
   const parsed = novoAchadoSchema.safeParse({
     categoria: formData.get("categoria"),
@@ -155,7 +126,7 @@ export async function createAchadoAction(
     const [achado] = await tx
       .insert(achados)
       .values({
-        unidadeId: ctx.vistoria.unidadeId,
+        unidadeId: ctx.unidadeId,
         categoria: parsed.data.categoria,
         local: parsed.data.local || null,
         descricao: parsed.data.descricao,
@@ -171,7 +142,7 @@ export async function createAchadoAction(
     });
   });
 
-  revalidatePath(ctx.pathBase);
+  revalidatePath(vistoriaPath(ctx));
   return {};
 }
 
@@ -188,8 +159,8 @@ export async function updateAchadoAction(
   formData: FormData,
 ): Promise<NovoAchadoState> {
   await requireSession();
-  const ctx = await getVistoriaContext(vistoriaId);
-  assertEditable(ctx.vistoria.status);
+  const ctx = await vistoriaContext(vistoriaId);
+  assertEditable(ctx);
 
   const parsed = updateAchadoSchema.safeParse({
     categoria: formData.get("categoria"),
@@ -215,7 +186,7 @@ export async function updateAchadoAction(
     })
     .where(eq(achados.id, achadoId));
 
-  revalidatePath(ctx.pathBase);
+  revalidatePath(vistoriaPath(ctx));
   return {};
 }
 
@@ -224,8 +195,8 @@ export async function deleteAchadoAction(
   vistoriaId: string,
 ): Promise<void> {
   await requireSession();
-  const ctx = await getVistoriaContext(vistoriaId);
-  assertEditable(ctx.vistoria.status);
+  const ctx = await vistoriaContext(vistoriaId);
+  assertEditable(ctx);
 
   const [achado] = await db
     .select({
@@ -244,14 +215,14 @@ export async function deleteAchadoAction(
   }
 
   await db.delete(achados).where(eq(achados.id, achadoId));
-  revalidatePath(ctx.pathBase);
+  revalidatePath(vistoriaPath(ctx));
 }
 
 export async function finalizeVistoriaAction(
   vistoriaId: string,
 ): Promise<void> {
   await requireSession();
-  const ctx = await getVistoriaContext(vistoriaId);
+  const ctx = await vistoriaContext(vistoriaId);
 
   await db
     .update(vistorias)
@@ -261,9 +232,9 @@ export async function finalizeVistoriaAction(
     })
     .where(eq(vistorias.id, vistoriaId));
 
-  revalidatePath(ctx.pathBase);
+  revalidatePath(vistoriaPath(ctx));
   revalidatePath(
-    `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.vistoria.unidadeId}`,
+    `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
   );
 }
 
@@ -271,7 +242,7 @@ export async function reopenVistoriaAction(
   vistoriaId: string,
 ): Promise<void> {
   await requireSession();
-  const ctx = await getVistoriaContext(vistoriaId);
+  const ctx = await vistoriaContext(vistoriaId);
 
   await db
     .update(vistorias)
@@ -281,9 +252,9 @@ export async function reopenVistoriaAction(
     })
     .where(eq(vistorias.id, vistoriaId));
 
-  revalidatePath(ctx.pathBase);
+  revalidatePath(vistoriaPath(ctx));
   revalidatePath(
-    `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.vistoria.unidadeId}`,
+    `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
   );
 }
 
@@ -296,8 +267,8 @@ export async function updateObservacoesAction(
   formData: FormData,
 ): Promise<void> {
   await requireSession();
-  const ctx = await getVistoriaContext(vistoriaId);
-  assertEditable(ctx.vistoria.status);
+  const ctx = await vistoriaContext(vistoriaId);
+  assertEditable(ctx);
 
   const parsed = observacoesSchema.safeParse({
     observacoesGerais: formData.get("observacoesGerais"),
@@ -309,22 +280,22 @@ export async function updateObservacoesAction(
     .set({ observacoesGerais: parsed.data.observacoesGerais || null })
     .where(eq(vistorias.id, vistoriaId));
 
-  revalidatePath(ctx.pathBase);
+  revalidatePath(vistoriaPath(ctx));
 }
 
 export async function deleteVistoriaFromEditPageAction(
   vistoriaId: string,
 ): Promise<void> {
   await requireSession();
-  const ctx = await getVistoriaContext(vistoriaId);
+  const ctx = await vistoriaContext(vistoriaId);
 
-  if (ctx.vistoria.status === "finalizada") {
+  if (ctx.vistoriaStatus === "finalizada") {
     throw new Error("Vistoria finalizada. Reabra antes de excluir.");
   }
 
   await db.delete(vistorias).where(eq(vistorias.id, vistoriaId));
   redirect(
-    `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.vistoria.unidadeId}`,
+    `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
   );
 }
 

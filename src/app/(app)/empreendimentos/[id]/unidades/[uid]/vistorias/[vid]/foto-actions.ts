@@ -4,27 +4,14 @@ import { revalidatePath } from "next/cache";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { achadoEventos, fotos, vistorias, unidades, achados } from "@/db/schema";
+import { achadoEventos, fotos } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { deleteFile } from "@/lib/storage";
-
-async function pathBaseFromEvento(eventoId: string) {
-  const [row] = await db
-    .select({
-      vistoriaId: achadoEventos.vistoriaId,
-      vistoriaStatus: vistorias.status,
-      unidadeId: vistorias.unidadeId,
-      empreendimentoId: unidades.empreendimentoId,
-    })
-    .from(achadoEventos)
-    .innerJoin(vistorias, eq(vistorias.id, achadoEventos.vistoriaId))
-    .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
-    .where(eq(achadoEventos.id, eventoId))
-    .limit(1);
-
-  if (!row) throw new Error("Evento não encontrado");
-  return row;
-}
+import {
+  vistoriaContext,
+  vistoriaContextFromEvento,
+  vistoriaPath,
+} from "@/lib/vistoria-context";
 
 export async function deleteFotoAction(fotoId: string): Promise<void> {
   await requireSession();
@@ -41,18 +28,18 @@ export async function deleteFotoAction(fotoId: string): Promise<void> {
     .limit(1);
   if (!foto) return;
 
-  const ctx = await pathBaseFromEvento(foto.eventoId);
+  const ctx = await vistoriaContextFromEvento(foto.eventoId);
   if (ctx.vistoriaStatus === "finalizada") {
     throw new Error("Vistoria finalizada. Reabra antes de remover fotos.");
   }
 
   await db.delete(fotos).where(eq(fotos.id, fotoId));
-  await deleteFile(foto.arquivoPath).catch(() => {});
-  await deleteFile(foto.thumbPath).catch(() => {});
+  await Promise.all([
+    deleteFile(foto.arquivoPath).catch(() => {}),
+    deleteFile(foto.thumbPath).catch(() => {}),
+  ]);
 
-  revalidatePath(
-    `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}/vistorias/${ctx.vistoriaId}`,
-  );
+  revalidatePath(vistoriaPath(ctx));
 }
 
 const legendaSchema = z.string().trim().max(500);
@@ -73,7 +60,7 @@ export async function updateLegendaAction(
     .limit(1);
   if (!foto) return;
 
-  const ctx = await pathBaseFromEvento(foto.eventoId);
+  const ctx = await vistoriaContextFromEvento(foto.eventoId);
   if (ctx.vistoriaStatus === "finalizada") {
     throw new Error("Vistoria finalizada.");
   }
@@ -83,9 +70,7 @@ export async function updateLegendaAction(
     .set({ legenda: parsed.data || null })
     .where(eq(fotos.id, fotoId));
 
-  revalidatePath(
-    `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}/vistorias/${ctx.vistoriaId}`,
-  );
+  revalidatePath(vistoriaPath(ctx));
 }
 
 const notaSchema = z.string().trim().max(2000);
@@ -99,7 +84,7 @@ export async function updateEventoNotaAction(
   const parsed = notaSchema.safeParse(nota);
   if (!parsed.success) throw new Error("Nota inválida");
 
-  const ctx = await pathBaseFromEvento(eventoId);
+  const ctx = await vistoriaContextFromEvento(eventoId);
   if (ctx.vistoriaStatus === "finalizada") {
     throw new Error("Vistoria finalizada.");
   }
@@ -109,9 +94,7 @@ export async function updateEventoNotaAction(
     .set({ notaExtra: parsed.data || null })
     .where(eq(achadoEventos.id, eventoId));
 
-  revalidatePath(
-    `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}/vistorias/${ctx.vistoriaId}`,
-  );
+  revalidatePath(vistoriaPath(ctx));
 }
 
 export async function ensureNotaEventoAction(
@@ -119,17 +102,11 @@ export async function ensureNotaEventoAction(
   achadoId: string,
 ): Promise<{ eventoId: string }> {
   await requireSession();
-
-  const [v] = await db
-    .select({ status: vistorias.status })
-    .from(vistorias)
-    .where(eq(vistorias.id, vistoriaId))
-    .limit(1);
-  if (!v) throw new Error("Vistoria não encontrada");
-  if (v.status === "finalizada") throw new Error("Vistoria finalizada.");
+  const ctx = await vistoriaContext(vistoriaId);
+  if (ctx.vistoriaStatus === "finalizada") throw new Error("Vistoria finalizada.");
 
   const existing = await db
-    .select()
+    .select({ id: achadoEventos.id })
     .from(achadoEventos)
     .where(
       and(
@@ -145,30 +122,9 @@ export async function ensureNotaEventoAction(
 
   const [created] = await db
     .insert(achadoEventos)
-    .values({
-      achadoId,
-      vistoriaId,
-      tipo: "nota",
-    })
+    .values({ achadoId, vistoriaId, tipo: "nota" })
     .returning({ id: achadoEventos.id });
 
-  // Don't revalidate here; caller will after upload completes
-  // But we need to have the achado's unidade for a future revalidate call
-  const [info] = await db
-    .select({
-      unidadeId: vistorias.unidadeId,
-      empreendimentoId: unidades.empreendimentoId,
-    })
-    .from(vistorias)
-    .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
-    .where(eq(vistorias.id, vistoriaId))
-    .limit(1);
-  if (info) {
-    revalidatePath(
-      `/empreendimentos/${info.empreendimentoId}/unidades/${info.unidadeId}/vistorias/${vistoriaId}`,
-    );
-  }
-  void achados;
-
+  revalidatePath(vistoriaPath(ctx));
   return { eventoId: created.id };
 }

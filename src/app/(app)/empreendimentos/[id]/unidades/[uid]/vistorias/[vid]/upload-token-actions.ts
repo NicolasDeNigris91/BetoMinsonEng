@@ -4,43 +4,22 @@ import { revalidatePath } from "next/cache";
 import { and, eq, gt } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { db } from "@/db";
-import { shareTokens, unidades, vistorias } from "@/db/schema";
+import { shareTokens } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
+import { vistoriaContext, vistoriaPath } from "@/lib/vistoria-context";
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-
-async function vistoriaPagePath(vistoriaId: string): Promise<string> {
-  const [v] = await db
-    .select({ unidadeId: vistorias.unidadeId })
-    .from(vistorias)
-    .where(eq(vistorias.id, vistoriaId))
-    .limit(1);
-  if (!v) throw new Error("Vistoria não encontrada");
-  const [u] = await db
-    .select({ empreendimentoId: unidades.empreendimentoId })
-    .from(unidades)
-    .where(eq(unidades.id, v.unidadeId))
-    .limit(1);
-  if (!u) throw new Error("Unidade não encontrada");
-  return `/empreendimentos/${u.empreendimentoId}/unidades/${v.unidadeId}/vistorias/${vistoriaId}`;
-}
 
 export async function createUploadTokenAction(
   vistoriaId: string,
 ): Promise<void> {
   await requireSession();
-
-  const [v] = await db
-    .select({ status: vistorias.status })
-    .from(vistorias)
-    .where(eq(vistorias.id, vistoriaId))
-    .limit(1);
-  if (!v) throw new Error("Vistoria não encontrada");
-  if (v.status === "finalizada") {
+  const ctx = await vistoriaContext(vistoriaId);
+  if (ctx.vistoriaStatus === "finalizada") {
     throw new Error("Vistoria finalizada. Reabra antes de gerar um link.");
   }
 
-  // Revoke any existing upload token for this vistoria — only one active at a time
+  // Apenas um token de upload ativo por vistoria.
   await db
     .delete(shareTokens)
     .where(
@@ -60,13 +39,14 @@ export async function createUploadTokenAction(
     permiteUpload: true,
   });
 
-  revalidatePath(await vistoriaPagePath(vistoriaId));
+  revalidatePath(vistoriaPath(ctx));
 }
 
 export async function revokeUploadTokenAction(
   vistoriaId: string,
 ): Promise<void> {
   await requireSession();
+  const ctx = await vistoriaContext(vistoriaId);
 
   await db
     .delete(shareTokens)
@@ -77,7 +57,7 @@ export async function revokeUploadTokenAction(
       ),
     );
 
-  revalidatePath(await vistoriaPagePath(vistoriaId));
+  revalidatePath(vistoriaPath(ctx));
 }
 
 export async function getActiveUploadTokenAction(
