@@ -37,7 +37,11 @@ export function EmpreendimentoFormDialog({ trigger, empreendimento }: Props) {
   const [state, formAction, pending] = useActionState<
     EmpreendimentoFormState,
     FormData
-  >(action, {});
+  >(async (prev, formData) => {
+    const result = await action(prev, formData);
+    if (!result.fieldErrors && !result.error) setOpen(false);
+    return result;
+  }, {});
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

@@ -28,7 +28,11 @@ export function NovaVistoriaDialog({
   const [open, setOpen] = useState(false);
   const action = createVistoriaAction.bind(null, unidadeId);
   const [state, formAction, pending] = useActionState<NovaVistoriaState, FormData>(
-    action,
+    async (prev, formData) => {
+      const result = await action(prev, formData);
+      if (!result.fieldErrors && !result.error) setOpen(false);
+      return result;
+    },
     {},
   );
 
