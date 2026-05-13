@@ -44,8 +44,9 @@ export function UnidadeFormDialog({
     FormData
   >(async (prev, formData) => {
     const result = await action(prev, formData);
-    if (!result.fieldErrors && !result.error) setOpen(false);
-    return result;
+    // result pode ser undefined quando o action faz redirect (ex: criar).
+    if (!result?.fieldErrors && !result?.error) setOpen(false);
+    return result ?? {};
   }, {});
 
   return (

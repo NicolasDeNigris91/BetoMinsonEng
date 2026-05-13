@@ -30,8 +30,9 @@ export function NovaVistoriaDialog({
   const [state, formAction, pending] = useActionState<NovaVistoriaState, FormData>(
     async (prev, formData) => {
       const result = await action(prev, formData);
-      if (!result.fieldErrors && !result.error) setOpen(false);
-      return result;
+      // result pode ser undefined quando o action faz redirect (ex: criar).
+      if (!result?.fieldErrors && !result?.error) setOpen(false);
+      return result ?? {};
     },
     {},
   );
