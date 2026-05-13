@@ -14,3 +14,4 @@ dev.log
 .idea
 README.md
 docker-compose.yml
+.claude

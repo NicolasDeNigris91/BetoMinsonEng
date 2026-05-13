@@ -43,3 +43,6 @@ next-env.d.ts
 # local uploads (Railway Volume in prod)
 /data
 
+# tooling locals
+/.claude
+
