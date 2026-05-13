@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, X, Loader2 } from "lucide-react";
+import { ImagePlus, X, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { usePhotoUpload } from "@/lib/use-photo-upload";
@@ -10,6 +10,22 @@ import {
   deleteFotoAction,
   updateLegendaAction,
 } from "@/app/(app)/empreendimentos/[id]/unidades/[uid]/vistorias/[vid]/foto-actions";
+
+function pickImageFiles(items: DataTransferItemList | FileList): File[] {
+  const out: File[] = [];
+  if (items instanceof FileList) {
+    for (const f of Array.from(items)) {
+      if (f.type.startsWith("image/")) out.push(f);
+    }
+    return out;
+  }
+  for (const item of Array.from(items)) {
+    if (item.kind !== "file") continue;
+    const f = item.getAsFile();
+    if (f && f.type.startsWith("image/")) out.push(f);
+  }
+  return out;
+}
 
 export type FotoView = {
   id: string;
@@ -39,8 +55,10 @@ export function PhotoUploader({
   onUploaded,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [dragOver, setDragOver] = useState(false);
 
   const handleSuccess = useCallback(() => {
     router.refresh();
@@ -52,12 +70,51 @@ export function PhotoUploader({
     onSuccess: handleSuccess,
   });
 
-  const handleUpload = async (files: FileList | null) => {
+  const handleUpload = async (files: FileList | File[] | null) => {
     try {
       await upload(files);
     } finally {
       if (inputRef.current) inputRef.current.value = "";
     }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!editable) return;
+    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    setDragOver(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!editable) return;
+    if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!editable) return;
+    e.preventDefault();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) setDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!editable) return;
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setDragOver(false);
+    const imageFiles = pickImageFiles(
+      e.dataTransfer.items.length > 0
+        ? e.dataTransfer.items
+        : e.dataTransfer.files,
+    );
+    if (imageFiles.length === 0) {
+      toast.error("Solte apenas imagens");
+      return;
+    }
+    void handleUpload(imageFiles);
   };
 
   const handleDelete = (id: string) => {
@@ -84,7 +141,21 @@ export function PhotoUploader({
   if (fotos.length === 0 && !editable) return null;
 
   return (
-    <div className="space-y-3">
+    <div
+      className={
+        editable
+          ? `relative rounded-lg space-y-3 transition-colors ${
+              dragOver
+                ? "ring-2 ring-primary ring-offset-2 ring-offset-background bg-primary/5"
+                : ""
+            }`
+          : "space-y-3"
+      }
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {fotos.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {fotos.map((f) => (
@@ -104,7 +175,7 @@ export function PhotoUploader({
       ) : null}
 
       {editable ? (
-        <div>
+        <div className="flex items-center gap-3">
           <input
             ref={inputRef}
             type="file"
@@ -134,6 +205,18 @@ export function PhotoUploader({
               </>
             )}
           </Button>
+          <span className="text-xs text-muted-foreground hidden sm:inline">
+            ou arraste e solte aqui
+          </span>
+        </div>
+      ) : null}
+
+      {dragOver ? (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-primary/10 backdrop-blur-[1px]">
+          <div className="flex items-center gap-2 rounded-md bg-background px-3 py-2 text-sm font-medium shadow-md">
+            <Upload className="size-4" />
+            Solte as fotos para enviar
+          </div>
         </div>
       ) : null}
     </div>
