@@ -9,12 +9,9 @@ import { processImage } from "@/lib/images";
 import { saveFile } from "@/lib/storage";
 
 const MAX_BYTES = 15 * 1024 * 1024;
-const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 
-const querySchema = z.object({
+const formSchema = z.object({
   achadoEventoId: z.string().uuid(),
-  legenda: z.string().optional(),
-  uploadToken: z.string().optional(),
 });
 
 async function uploadTokenAllowsVistoria(
@@ -37,13 +34,27 @@ async function uploadTokenAllowsVistoria(
 }
 
 export async function POST(req: Request) {
-  const form = await req.formData();
-  const params = querySchema.safeParse({
-    achadoEventoId: form.get("achadoEventoId"),
-    legenda: form.get("legenda") ?? undefined,
-    uploadToken: form.get("uploadToken") ?? undefined,
-  });
+  const url = new URL(req.url);
+  const uploadToken = url.searchParams.get("token");
 
+  // Reject before parsing the body when there is no plausible auth.
+  const sessionOk = await isLoggedIn();
+  if (!sessionOk && !uploadToken) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const contentLength = Number(req.headers.get("content-length") ?? 0);
+  if (contentLength > MAX_BYTES) {
+    return NextResponse.json(
+      { error: "Arquivo maior que 15MB" },
+      { status: 413 },
+    );
+  }
+
+  const form = await req.formData();
+  const params = formSchema.safeParse({
+    achadoEventoId: form.get("achadoEventoId"),
+  });
   if (!params.success) {
     return NextResponse.json(
       { error: "Parâmetros inválidos" },
@@ -61,7 +72,7 @@ export async function POST(req: Request) {
       { status: 413 },
     );
   }
-  if (!ACCEPTED.includes(file.type) && !file.type.startsWith("image/")) {
+  if (!file.type.startsWith("image/")) {
     return NextResponse.json(
       { error: "Tipo de arquivo não suportado" },
       { status: 415 },
@@ -92,13 +103,13 @@ export async function POST(req: Request) {
     );
   }
 
-  const sessionOk = await isLoggedIn();
-  const tokenOk = params.data.uploadToken
-    ? await uploadTokenAllowsVistoria(params.data.uploadToken, evento.vistoriaId)
-    : false;
-
-  if (!sessionOk && !tokenOk) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!sessionOk) {
+    const tokenOk = uploadToken
+      ? await uploadTokenAllowsVistoria(uploadToken, evento.vistoriaId)
+      : false;
+    if (!tokenOk) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -106,11 +117,9 @@ export async function POST(req: Request) {
   try {
     processed = await processImage(buffer);
   } catch (err) {
+    console.error("[upload] processImage failed", err);
     return NextResponse.json(
-      {
-        error: "Falha ao processar imagem",
-        detail: err instanceof Error ? err.message : String(err),
-      },
+      { error: "Falha ao processar imagem" },
       { status: 422 },
     );
   }
@@ -136,7 +145,7 @@ export async function POST(req: Request) {
       achadoEventoId: evento.id,
       arquivoPath,
       thumbPath,
-      legenda: params.data.legenda || null,
+      legenda: null,
       ordem: nextOrdem,
     })
     .returning();

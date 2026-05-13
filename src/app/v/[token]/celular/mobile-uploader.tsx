@@ -61,13 +61,13 @@ function MobileUploadCard({ item, token }: { item: Item; token: string }) {
     );
 
     try {
+      const uploadUrl = `/api/upload?token=${encodeURIComponent(token)}`;
       for (const file of list) {
         const fd = new FormData();
         fd.set("achadoEventoId", item.eventoId);
-        fd.set("uploadToken", token);
         fd.set("file", file);
         try {
-          const res = await fetch("/api/upload", { method: "POST", body: fd });
+          const res = await fetch(uploadUrl, { method: "POST", body: fd });
           if (res.ok) {
             succeeded += 1;
           } else {

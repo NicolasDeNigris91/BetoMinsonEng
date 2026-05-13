@@ -7,8 +7,18 @@ type SessionData = {
 
 const PUBLIC_PATHS = ["/login", "/v/", "/_next/", "/favicon.ico", "/robots.txt"];
 
+function readSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      "SESSION_SECRET ausente ou com menos de 32 caracteres — middleware não pode rodar.",
+    );
+  }
+  return secret;
+}
+
 const sessionOptions = {
-  password: process.env.SESSION_SECRET ?? "",
+  password: readSessionSecret(),
   cookieName: "rme_session",
   cookieOptions: {
     httpOnly: true,
