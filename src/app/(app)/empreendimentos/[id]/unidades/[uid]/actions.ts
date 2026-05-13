@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { unidades, vistorias } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { todayISO } from "@/lib/format";
+import { vistoriaContext } from "@/lib/vistoria-context";
 
 const novaVistoriaSchema = z.object({
   data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
@@ -68,41 +69,22 @@ export async function createVistoriaAction(
 
 export async function deleteVistoriaAction(vistoriaId: string): Promise<void> {
   await requireSession();
+  const ctx = await vistoriaContext(vistoriaId);
 
-  const [vistoria] = await db
-    .select({
-      id: vistorias.id,
-      status: vistorias.status,
-      unidadeId: vistorias.unidadeId,
-    })
-    .from(vistorias)
-    .where(eq(vistorias.id, vistoriaId))
-    .limit(1);
-
-  if (!vistoria) return;
-
-  if (vistoria.status === "finalizada") {
+  if (ctx.vistoriaStatus === "finalizada") {
     throw new Error(
       "Vistoria finalizada não pode ser excluída. Reabra antes ou apague achados específicos.",
     );
   }
 
-  const [unidade] = await db
-    .select({ empreendimentoId: unidades.empreendimentoId })
-    .from(unidades)
-    .where(eq(unidades.id, vistoria.unidadeId))
-    .limit(1);
-
   await db.delete(vistorias).where(eq(vistorias.id, vistoriaId));
 
-  if (unidade) {
-    revalidatePath(
-      `/empreendimentos/${unidade.empreendimentoId}/unidades/${vistoria.unidadeId}`,
-    );
-    redirect(
-      `/empreendimentos/${unidade.empreendimentoId}/unidades/${vistoria.unidadeId}`,
-    );
-  }
+  revalidatePath(
+    `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
+  );
+  redirect(
+    `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
+  );
 }
 
 export async function listVistoriasFromUnidade(unidadeId: string) {
