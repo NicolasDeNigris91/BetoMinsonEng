@@ -1,12 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, ImagePlus, Loader2, Check } from "lucide-react";
-import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CATEGORIA_LABELS, type Categoria } from "@/db/schema";
+import { usePhotoUpload } from "@/lib/use-photo-upload";
 
 type Item = {
   eventoId: string;
@@ -40,65 +40,36 @@ export function MobileUploader({ token, items }: Props) {
   );
 }
 
+const SUCCESS_LABEL = {
+  singular: "Foto enviada",
+  plural: (n: number) => `${n} fotos enviadas`,
+};
+
 function MobileUploadCard({ item, token }: { item: Item; token: string }) {
   const router = useRouter();
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
   const [recentCount, setRecentCount] = useState(0);
 
+  const handleSuccess = useCallback(
+    (n: number) => {
+      setRecentCount((c) => c + n);
+      router.refresh();
+    },
+    [router],
+  );
+
+  const { upload, uploading } = usePhotoUpload({
+    eventoId: item.eventoId,
+    uploadToken: token,
+    successLabel: SUCCESS_LABEL,
+    onSuccess: handleSuccess,
+  });
+
   const handleUpload = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const list = Array.from(files);
-    setUploading(true);
-
-    let succeeded = 0;
-    let failed = 0;
-    const toastId = toast.loading(
-      list.length === 1
-        ? "Enviando foto..."
-        : `Enviando 0 de ${list.length} fotos...`,
-    );
-
     try {
-      const uploadUrl = `/api/upload?token=${encodeURIComponent(token)}`;
-      for (const file of list) {
-        const fd = new FormData();
-        fd.set("achadoEventoId", item.eventoId);
-        fd.set("file", file);
-        try {
-          const res = await fetch(uploadUrl, { method: "POST", body: fd });
-          if (res.ok) {
-            succeeded += 1;
-          } else {
-            failed += 1;
-            const data = await res.json().catch(() => ({}));
-            toast.error(data.error ?? `Falha no upload de ${file.name}`);
-          }
-        } catch {
-          failed += 1;
-          toast.error(`Falha no upload de ${file.name}`);
-        }
-        if (list.length > 1) {
-          toast.loading(
-            `Enviando ${succeeded + failed} de ${list.length} fotos...`,
-            { id: toastId },
-          );
-        }
-      }
-
-      if (succeeded > 0) {
-        setRecentCount((c) => c + succeeded);
-        toast.success(
-          succeeded === 1 ? "Foto enviada" : `${succeeded} fotos enviadas`,
-          { id: toastId },
-        );
-        router.refresh();
-      } else {
-        toast.dismiss(toastId);
-      }
+      await upload(files);
     } finally {
-      setUploading(false);
       if (cameraRef.current) cameraRef.current.value = "";
       if (galleryRef.current) galleryRef.current.value = "";
     }

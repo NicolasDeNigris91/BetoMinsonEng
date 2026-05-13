@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ImagePlus, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { usePhotoUpload } from "@/lib/use-photo-upload";
 import {
   deleteFotoAction,
   updateLegendaAction,
@@ -39,67 +40,22 @@ export function PhotoUploader({
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
-  const [uploadTotal, setUploadTotal] = useState(0);
-  const [uploadDone, setUploadDone] = useState(0);
   const [pending, start] = useTransition();
-  const uploading = uploadTotal > 0;
+
+  const handleSuccess = useCallback(() => {
+    router.refresh();
+    onUploaded?.();
+  }, [router, onUploaded]);
+
+  const { upload, uploading, total, done } = usePhotoUpload({
+    eventoId,
+    onSuccess: handleSuccess,
+  });
 
   const handleUpload = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const list = Array.from(files);
-    setUploadTotal(list.length);
-    setUploadDone(0);
-
-    let succeeded = 0;
-    let failed = 0;
-    const toastId = toast.loading(
-      list.length === 1
-        ? "Enviando foto..."
-        : `Enviando 0 de ${list.length} fotos...`,
-    );
-
     try {
-      for (const file of list) {
-        const fd = new FormData();
-        fd.set("achadoEventoId", eventoId);
-        fd.set("file", file);
-        try {
-          const res = await fetch("/api/upload", { method: "POST", body: fd });
-          if (res.ok) {
-            succeeded += 1;
-          } else {
-            failed += 1;
-            const data = await res.json().catch(() => ({}));
-            toast.error(data.error ?? `Falha no upload de ${file.name}`);
-          }
-        } catch {
-          failed += 1;
-          toast.error(`Falha no upload de ${file.name}`);
-        }
-        setUploadDone((d) => d + 1);
-        if (list.length > 1) {
-          toast.loading(
-            `Enviando ${succeeded + failed} de ${list.length} fotos...`,
-            { id: toastId },
-          );
-        }
-      }
-
-      if (succeeded > 0) {
-        router.refresh();
-        toast.success(
-          succeeded === 1
-            ? "Foto adicionada"
-            : `${succeeded} fotos adicionadas`,
-          { id: toastId },
-        );
-      } else {
-        toast.dismiss(toastId);
-      }
-      onUploaded?.();
+      await upload(files);
     } finally {
-      setUploadTotal(0);
-      setUploadDone(0);
       if (inputRef.current) inputRef.current.value = "";
     }
   };
@@ -167,9 +123,9 @@ export function PhotoUploader({
             {uploading ? (
               <>
                 <Loader2 className="mr-1.5 size-4 animate-spin" />
-                {uploadTotal === 1
+                {total === 1
                   ? "Enviando foto..."
-                  : `Enviando ${uploadDone} de ${uploadTotal}...`}
+                  : `Enviando ${done} de ${total}...`}
               </>
             ) : (
               <>
