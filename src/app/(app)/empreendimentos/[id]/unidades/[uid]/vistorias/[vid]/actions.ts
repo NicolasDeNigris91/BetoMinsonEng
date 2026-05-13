@@ -5,8 +5,9 @@ import { redirect } from "next/navigation";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { achadoEventos, achados, vistorias, categoriaEnum } from "@/db/schema";
+import { achadoEventos, achados, fotos, vistorias, categoriaEnum } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
+import { deleteFotosFromStorage } from "@/lib/foto-storage";
 import {
   vistoriaContext,
   vistoriaPath,
@@ -39,6 +40,8 @@ export async function setAchadoStateInVistoriaAction(
   const ctx = await vistoriaContext(vistoriaId);
   assertEditable(ctx);
 
+  let fotosToCleanup: { arquivoPath: string; thumbPath: string }[] = [];
+
   await db.transaction(async (tx) => {
     const existing = await tx
       .select()
@@ -55,6 +58,10 @@ export async function setAchadoStateInVistoriaAction(
 
     if (state === "none") {
       if (existing.length > 0) {
+        fotosToCleanup = await tx
+          .select({ arquivoPath: fotos.arquivoPath, thumbPath: fotos.thumbPath })
+          .from(fotos)
+          .where(eq(fotos.achadoEventoId, existing[0].id));
         await tx
           .delete(achadoEventos)
           .where(eq(achadoEventos.id, existing[0].id));
@@ -95,6 +102,7 @@ export async function setAchadoStateInVistoriaAction(
     }
   });
 
+  await deleteFotosFromStorage(fotosToCleanup);
   revalidatePath(vistoriaPath(ctx));
 }
 
@@ -214,7 +222,15 @@ export async function deleteAchadoAction(
     );
   }
 
+  const fotosToCleanup = await db
+    .select({ arquivoPath: fotos.arquivoPath, thumbPath: fotos.thumbPath })
+    .from(fotos)
+    .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
+    .where(eq(achadoEventos.achadoId, achadoId));
+
   await db.delete(achados).where(eq(achados.id, achadoId));
+  await deleteFotosFromStorage(fotosToCleanup);
+
   revalidatePath(vistoriaPath(ctx));
 }
 
@@ -293,7 +309,15 @@ export async function deleteVistoriaFromEditPageAction(
     throw new Error("Vistoria finalizada. Reabra antes de excluir.");
   }
 
+  const fotosToCleanup = await db
+    .select({ arquivoPath: fotos.arquivoPath, thumbPath: fotos.thumbPath })
+    .from(fotos)
+    .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
+    .where(eq(achadoEventos.vistoriaId, vistoriaId));
+
   await db.delete(vistorias).where(eq(vistorias.id, vistoriaId));
+  await deleteFotosFromStorage(fotosToCleanup);
+
   redirect(
     `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
   );

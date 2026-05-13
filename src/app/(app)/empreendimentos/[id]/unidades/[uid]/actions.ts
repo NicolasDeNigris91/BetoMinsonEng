@@ -5,8 +5,9 @@ import { redirect } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { unidades, vistorias } from "@/db/schema";
+import { achadoEventos, fotos, unidades, vistorias } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
+import { deleteFotosFromStorage } from "@/lib/foto-storage";
 import { todayISO } from "@/lib/format";
 import { vistoriaContext } from "@/lib/vistoria-context";
 
@@ -77,7 +78,14 @@ export async function deleteVistoriaAction(vistoriaId: string): Promise<void> {
     );
   }
 
+  const fotosToCleanup = await db
+    .select({ arquivoPath: fotos.arquivoPath, thumbPath: fotos.thumbPath })
+    .from(fotos)
+    .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
+    .where(eq(achadoEventos.vistoriaId, vistoriaId));
+
   await db.delete(vistorias).where(eq(vistorias.id, vistoriaId));
+  await deleteFotosFromStorage(fotosToCleanup);
 
   revalidatePath(
     `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,

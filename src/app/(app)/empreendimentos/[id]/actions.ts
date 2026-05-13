@@ -5,8 +5,9 @@ import { redirect } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { unidades } from "@/db/schema";
+import { achadoEventos, fotos, unidades, vistorias } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
+import { deleteFotosFromStorage } from "@/lib/foto-storage";
 
 const unidadeSchema = z.object({
   nome: z.string().trim().min(1, "Nome é obrigatório").max(100),
@@ -106,10 +107,20 @@ export async function updateUnidadeAction(
 
 export async function deleteUnidadeAction(unidadeId: string): Promise<void> {
   await requireSession();
+
+  const fotosToCleanup = await db
+    .select({ arquivoPath: fotos.arquivoPath, thumbPath: fotos.thumbPath })
+    .from(fotos)
+    .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
+    .innerJoin(vistorias, eq(vistorias.id, achadoEventos.vistoriaId))
+    .where(eq(vistorias.unidadeId, unidadeId));
+
   const [deleted] = await db
     .delete(unidades)
     .where(eq(unidades.id, unidadeId))
     .returning({ empreendimentoId: unidades.empreendimentoId });
+
+  await deleteFotosFromStorage(fotosToCleanup);
 
   if (deleted) {
     revalidatePath(`/empreendimentos/${deleted.empreendimentoId}`);

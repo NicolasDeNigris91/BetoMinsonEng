@@ -5,8 +5,15 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { empreendimentos } from "@/db/schema";
+import {
+  achadoEventos,
+  empreendimentos,
+  fotos,
+  unidades,
+  vistorias,
+} from "@/db/schema";
 import { requireSession } from "@/lib/auth";
+import { deleteFotosFromStorage } from "@/lib/foto-storage";
 
 const empreendimentoSchema = z.object({
   nome: z.string().trim().min(1, "Nome é obrigatório").max(200),
@@ -96,7 +103,18 @@ export async function updateEmpreendimentoAction(
 
 export async function deleteEmpreendimentoAction(id: string): Promise<void> {
   await requireSession();
+
+  const fotosToCleanup = await db
+    .select({ arquivoPath: fotos.arquivoPath, thumbPath: fotos.thumbPath })
+    .from(fotos)
+    .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
+    .innerJoin(vistorias, eq(vistorias.id, achadoEventos.vistoriaId))
+    .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
+    .where(eq(unidades.empreendimentoId, id));
+
   await db.delete(empreendimentos).where(eq(empreendimentos.id, id));
+  await deleteFotosFromStorage(fotosToCleanup);
+
   revalidatePath("/empreendimentos");
   redirect("/empreendimentos");
 }
