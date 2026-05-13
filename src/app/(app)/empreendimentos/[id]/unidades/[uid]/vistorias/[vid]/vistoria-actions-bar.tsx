@@ -98,7 +98,12 @@ export function VistoriaActionsBar({
             destructive
             onConfirm={remove}
             trigger={
-              <Button size="sm" variant="ghost" disabled={pending}>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={pending}
+                aria-label="Excluir vistoria"
+              >
                 <Trash2 className="size-4" />
               </Button>
             }

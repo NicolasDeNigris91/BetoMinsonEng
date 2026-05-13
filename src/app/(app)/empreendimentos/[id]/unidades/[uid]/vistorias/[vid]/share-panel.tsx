@@ -106,6 +106,7 @@ export function SharePanel({ vistoriaId, baseUrl, tokens }: Props) {
                     size="sm"
                     variant="outline"
                     onClick={() => copy(t.token)}
+                    aria-label="Copiar link"
                   >
                     <Copy className="size-3.5" />
                   </Button>
@@ -116,7 +117,12 @@ export function SharePanel({ vistoriaId, baseUrl, tokens }: Props) {
                     confirmLabel="Revogar"
                     onConfirm={() => revoke(t.id)}
                     trigger={
-                      <Button type="button" size="sm" variant="ghost">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        aria-label="Revogar link"
+                      >
                         <Trash2 className="size-3.5" />
                       </Button>
                     }

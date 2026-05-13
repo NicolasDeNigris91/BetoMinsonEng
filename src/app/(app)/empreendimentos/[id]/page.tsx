@@ -26,21 +26,20 @@ export default async function EmpreendimentoDetailPage({
 }) {
   const { id } = await params;
 
-  const [emp] = await db
-    .select()
-    .from(empreendimentos)
-    .where(eq(empreendimentos.id, id))
-    .limit(1);
+  const [[emp], lista] = await Promise.all([
+    db
+      .select()
+      .from(empreendimentos)
+      .where(eq(empreendimentos.id, id))
+      .limit(1),
+    db
+      .select()
+      .from(unidades)
+      .where(eq(unidades.empreendimentoId, id))
+      .orderBy(asc(unidades.ordem), asc(unidades.nome)),
+  ]);
 
-  if (!emp) {
-    notFound();
-  }
-
-  const lista = await db
-    .select()
-    .from(unidades)
-    .where(eq(unidades.empreendimentoId, id))
-    .orderBy(asc(unidades.ordem), asc(unidades.nome));
+  if (!emp) notFound();
 
   return (
     <div className="space-y-6">
@@ -80,7 +79,7 @@ export default async function EmpreendimentoDetailPage({
             destructive
             onConfirm={deleteEmpreendimentoAction.bind(null, emp.id)}
             trigger={
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" aria-label="Excluir empreendimento">
                 <Trash2 className="size-4" />
               </Button>
             }

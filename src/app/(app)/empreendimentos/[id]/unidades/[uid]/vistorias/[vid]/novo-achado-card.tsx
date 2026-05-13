@@ -73,7 +73,7 @@ export function NovoAchadoCard({
               vistoriaId={vistoriaId}
               achado={achado}
               trigger={
-                <Button size="sm" variant="ghost">
+                <Button size="sm" variant="ghost" aria-label="Editar achado">
                   <Pencil className="size-4" />
                 </Button>
               }
@@ -85,7 +85,12 @@ export function NovoAchadoCard({
               confirmLabel="Excluir"
               onConfirm={handleDelete}
               trigger={
-                <Button size="sm" variant="ghost" disabled={pending}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={pending}
+                  aria-label="Excluir achado"
+                >
                   <Trash2 className="size-4" />
                 </Button>
               }

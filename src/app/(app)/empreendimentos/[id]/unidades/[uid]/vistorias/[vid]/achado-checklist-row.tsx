@@ -117,6 +117,7 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
               variant="ghost"
               disabled={pending}
               title="Adicionar nota/foto sem mudar status"
+              aria-label="Adicionar nota ou foto a este achado"
               onClick={ensureNota}
             >
               <MessageSquarePlus className="size-4" />
@@ -128,6 +129,7 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
               variant="ghost"
               disabled={pending}
               title="Limpar marcação (remove nota/fotos desta vistoria)"
+              aria-label="Limpar marcação deste achado"
               onClick={() => setState("none")}
             >
               <X className="size-4" />

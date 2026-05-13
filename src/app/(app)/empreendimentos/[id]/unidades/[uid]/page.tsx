@@ -33,36 +33,33 @@ export default async function UnidadeDetailPage({
 }) {
   const { id, uid } = await params;
 
-  const [unidade] = await db
-    .select()
-    .from(unidades)
-    .where(and(eq(unidades.id, uid), eq(unidades.empreendimentoId, id)))
-    .limit(1);
+  const [[unidade], [emp], vistoriasList, [achadosCounts]] = await Promise.all([
+    db
+      .select()
+      .from(unidades)
+      .where(and(eq(unidades.id, uid), eq(unidades.empreendimentoId, id)))
+      .limit(1),
+    db
+      .select()
+      .from(empreendimentos)
+      .where(eq(empreendimentos.id, id))
+      .limit(1),
+    db
+      .select()
+      .from(vistorias)
+      .where(eq(vistorias.unidadeId, uid))
+      .orderBy(desc(vistorias.data), desc(vistorias.createdAt)),
+    db
+      .select({
+        total: count(),
+        abertos: sql<number>`count(*) filter (where ${achados.status} = 'aberto')`,
+        resolvidos: sql<number>`count(*) filter (where ${achados.status} = 'resolvido')`,
+      })
+      .from(achados)
+      .where(eq(achados.unidadeId, uid)),
+  ]);
 
-  if (!unidade) notFound();
-
-  const [emp] = await db
-    .select()
-    .from(empreendimentos)
-    .where(eq(empreendimentos.id, id))
-    .limit(1);
-
-  if (!emp) notFound();
-
-  const vistoriasList = await db
-    .select()
-    .from(vistorias)
-    .where(eq(vistorias.unidadeId, uid))
-    .orderBy(desc(vistorias.data), desc(vistorias.createdAt));
-
-  const [achadosCounts] = await db
-    .select({
-      total: count(),
-      abertos: sql<number>`count(*) filter (where ${achados.status} = 'aberto')`,
-      resolvidos: sql<number>`count(*) filter (where ${achados.status} = 'resolvido')`,
-    })
-    .from(achados)
-    .where(eq(achados.unidadeId, uid));
+  if (!unidade || !emp) notFound();
 
   return (
     <div className="space-y-6">
@@ -118,7 +115,7 @@ export default async function UnidadeDetailPage({
             destructive
             onConfirm={deleteUnidadeAction.bind(null, unidade.id)}
             trigger={
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" aria-label="Excluir unidade">
                 <Trash2 className="size-4" />
               </Button>
             }
