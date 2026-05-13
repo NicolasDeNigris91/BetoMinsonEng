@@ -32,67 +32,67 @@ export default async function VistoriaPage({
 }) {
   const { id, uid, vid } = await params;
 
-  const [vistoria] = await db
-    .select()
-    .from(vistorias)
-    .where(and(eq(vistorias.id, vid), eq(vistorias.unidadeId, uid)))
-    .limit(1);
+  const [
+    [vistoria],
+    [unidade],
+    [emp],
+    checklist,
+    eventosNestaVistoria,
+    novosAchados,
+    allActiveTokens,
+  ] = await Promise.all([
+    db
+      .select()
+      .from(vistorias)
+      .where(and(eq(vistorias.id, vid), eq(vistorias.unidadeId, uid)))
+      .limit(1),
+    db
+      .select()
+      .from(unidades)
+      .where(and(eq(unidades.id, uid), eq(unidades.empreendimentoId, id)))
+      .limit(1),
+    db
+      .select()
+      .from(empreendimentos)
+      .where(eq(empreendimentos.id, id))
+      .limit(1),
+    db
+      .select()
+      .from(achados)
+      .where(
+        and(
+          eq(achados.unidadeId, uid),
+          eq(achados.status, "aberto"),
+          ne(achados.vistoriaOrigemId, vid),
+        ),
+      )
+      .orderBy(asc(achados.categoria), asc(achados.createdAt)),
+    db.query.achadoEventos.findMany({
+      where: eq(achadoEventos.vistoriaId, vid),
+      with: { fotos: true },
+    }),
+    db
+      .select()
+      .from(achados)
+      .where(eq(achados.vistoriaOrigemId, vid))
+      .orderBy(asc(achados.categoria), asc(achados.createdAt)),
+    db
+      .select()
+      .from(shareTokens)
+      .where(
+        and(
+          eq(shareTokens.vistoriaId, vid),
+          gt(shareTokens.expiraEm, new Date()),
+        ),
+      )
+      .orderBy(desc(shareTokens.criadoEm)),
+  ]);
 
-  if (!vistoria) notFound();
-
-  const [unidade] = await db
-    .select()
-    .from(unidades)
-    .where(and(eq(unidades.id, uid), eq(unidades.empreendimentoId, id)))
-    .limit(1);
-
-  if (!unidade) notFound();
-
-  const [emp] = await db
-    .select()
-    .from(empreendimentos)
-    .where(eq(empreendimentos.id, id))
-    .limit(1);
-
-  if (!emp) notFound();
-
-  const checklist = await db
-    .select()
-    .from(achados)
-    .where(
-      and(
-        eq(achados.unidadeId, uid),
-        eq(achados.status, "aberto"),
-        ne(achados.vistoriaOrigemId, vid),
-      ),
-    )
-    .orderBy(asc(achados.categoria), asc(achados.createdAt));
-
-  const eventosNestaVistoria = await db.query.achadoEventos.findMany({
-    where: eq(achadoEventos.vistoriaId, vid),
-    with: { fotos: true },
-  });
+  if (!vistoria || !unidade || !emp) notFound();
 
   const eventByAchadoId = new Map(
     eventosNestaVistoria.map((e) => [e.achadoId, e]),
   );
-
-  const novosAchados = await db
-    .select()
-    .from(achados)
-    .where(eq(achados.vistoriaOrigemId, vid))
-    .orderBy(asc(achados.categoria), asc(achados.createdAt));
-
-  const allActiveTokens = await db
-    .select()
-    .from(shareTokens)
-    .where(
-      and(
-        eq(shareTokens.vistoriaId, vid),
-        gt(shareTokens.expiraEm, new Date()),
-      ),
-    )
-    .orderBy(desc(shareTokens.criadoEm));
 
   const activeShareTokens = allActiveTokens.filter((t) => !t.permiteUpload);
   const activeUploadToken =
