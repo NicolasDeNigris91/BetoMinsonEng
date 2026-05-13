@@ -32,9 +32,8 @@ export async function loginAction(
 
   await login();
 
-  const from = parsed.data.from && parsed.data.from.startsWith("/")
-    ? parsed.data.from
-    : "/";
-
-  redirect(from);
+  const raw = parsed.data.from ?? "";
+  const isSafeInternalPath =
+    raw.startsWith("/") && !raw.startsWith("//") && !raw.startsWith("/\\");
+  redirect(isSafeInternalPath ? raw : "/");
 }
