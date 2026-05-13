@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, and, ne, asc, gt, desc } from "drizzle-orm";
@@ -24,6 +25,27 @@ import { SharePanel } from "./share-panel";
 import { VistoriaActionsBar } from "./vistoria-actions-bar";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ uid: string; vid: string }>;
+}): Promise<Metadata> {
+  const { uid, vid } = await params;
+  const [row] = await db
+    .select({
+      vistoriaData: vistorias.data,
+      unidadeNome: unidades.nome,
+    })
+    .from(vistorias)
+    .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
+    .where(and(eq(vistorias.id, vid), eq(unidades.id, uid)))
+    .limit(1);
+  if (!row) return { title: "Vistoria" };
+  return {
+    title: `${row.unidadeNome} — Vistoria ${formatDateBR(row.vistoriaData)}`,
+  };
+}
 
 export default async function VistoriaPage({
   params,

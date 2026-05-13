@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { eq, and, gt, asc } from "drizzle-orm";
@@ -17,6 +18,44 @@ import {
 import { formatDateBR, formatDateTimeBR } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const { token } = await params;
+  const [row] = await db
+    .select({
+      vistoriaData: vistorias.data,
+      unidadeNome: unidades.nome,
+      empreendimentoNome: empreendimentos.nome,
+    })
+    .from(shareTokens)
+    .innerJoin(vistorias, eq(vistorias.id, shareTokens.vistoriaId))
+    .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
+    .innerJoin(empreendimentos, eq(empreendimentos.id, unidades.empreendimentoId))
+    .where(
+      and(eq(shareTokens.token, token), gt(shareTokens.expiraEm, new Date())),
+    )
+    .limit(1);
+
+  if (!row) {
+    return {
+      title: "Vistoria — DiMinson Engenharia",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const title = `${row.empreendimentoNome} · ${row.unidadeNome}`;
+  const description = `Vistoria de instalações de ${formatDateBR(row.vistoriaData)} — DiMinson Engenharia.`;
+  return {
+    title,
+    description,
+    robots: { index: false, follow: false },
+    openGraph: { title, description, type: "article" },
+  };
+}
 
 const tipoLabels: Record<string, string> = {
   criado: "Achado criado",
