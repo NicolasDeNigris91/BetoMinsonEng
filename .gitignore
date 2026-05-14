@@ -45,4 +45,5 @@ next-env.d.ts
 
 # tooling locals
 /.claude
+/.superpowers
 
