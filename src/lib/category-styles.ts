@@ -29,6 +29,16 @@ export const CATEGORIA_STRIPE_BORDER: Record<Categoria, string> = {
   SIS: "border-l-slate-500 dark:border-l-slate-400",
 };
 
+/** Bolinha colorida solida — usada no select de categorias e badges com dot. */
+export const CATEGORIA_DOT: Record<Categoria, string> = {
+  ELE: "bg-yellow-400 dark:bg-yellow-500",
+  HID: "bg-blue-500 dark:bg-blue-400",
+  HVAC: "bg-sky-500 dark:bg-sky-400",
+  PISCINA: "bg-teal-500 dark:bg-teal-400",
+  ASP: "bg-violet-500 dark:bg-violet-400",
+  SIS: "bg-slate-500 dark:bg-slate-400",
+};
+
 type StyledBadge = { className: string; label: string };
 
 /**

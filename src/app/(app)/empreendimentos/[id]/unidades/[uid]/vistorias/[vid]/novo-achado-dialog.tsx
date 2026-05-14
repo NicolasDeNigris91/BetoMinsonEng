@@ -27,6 +27,8 @@ import {
   categoriaEnum,
   type Achado,
 } from "@/db/schema";
+import { CATEGORIA_DOT } from "@/lib/category-styles";
+import { cn } from "@/lib/utils";
 import {
   createAchadoAction,
   updateAchadoAction,
@@ -95,7 +97,17 @@ export function AchadoFormDialog({ vistoriaId, achado, trigger }: Props) {
               <SelectContent>
                 {categoriaEnum.enumValues.map((c) => (
                   <SelectItem key={c} value={c}>
-                    {CATEGORIA_LABELS[c]} ({c})
+                    <span
+                      className={cn(
+                        "inline-block size-2.5 shrink-0 rounded-full",
+                        CATEGORIA_DOT[c],
+                      )}
+                      aria-hidden
+                    />
+                    <span>
+                      {CATEGORIA_LABELS[c]}{" "}
+                      <span className="text-muted-foreground">({c})</span>
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
