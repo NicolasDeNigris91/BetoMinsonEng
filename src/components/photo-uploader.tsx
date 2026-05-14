@@ -2,9 +2,10 @@
 
 import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, X, Loader2, Upload } from "lucide-react";
+import { ImagePlus, X, Loader2, Upload, Highlighter } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { PhotoEditor } from "@/components/photo-editor";
 import { usePhotoUpload } from "@/lib/use-photo-upload";
 import {
   deleteFotoAction,
@@ -55,10 +56,15 @@ export function PhotoUploader({
   onUploaded,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
   const router = useRouter();
   const [pending, start] = useTransition();
   const [dragOver, setDragOver] = useState(false);
+  const [editorQueue, setEditorQueue] = useState<{
+    remaining: File[];
+    processed: File[];
+  } | null>(null);
 
   const handleSuccess = useCallback(() => {
     router.refresh();
@@ -76,6 +82,37 @@ export function PhotoUploader({
     } finally {
       if (inputRef.current) inputRef.current.value = "";
     }
+  };
+
+  const startEditFlow = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setEditorQueue({ remaining: Array.from(files), processed: [] });
+  };
+
+  const advanceEditor = (next: File) => {
+    setEditorQueue((q) => {
+      if (!q) return null;
+      const remaining = q.remaining.slice(1);
+      const processed = [...q.processed, next];
+      if (remaining.length === 0) {
+        void handleUpload(processed);
+        return null;
+      }
+      return { remaining, processed };
+    });
+  };
+
+  const handleEditorConfirm = (edited: File) => advanceEditor(edited);
+
+  const handleEditorSkip = () => {
+    if (!editorQueue) return;
+    const original = editorQueue.remaining[0];
+    if (original) advanceEditor(original);
+  };
+
+  const handleEditorCancel = () => {
+    setEditorQueue(null);
+    if (editInputRef.current) editInputRef.current.value = "";
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -175,7 +212,7 @@ export function PhotoUploader({
       ) : null}
 
       {editable ? (
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             ref={inputRef}
             type="file"
@@ -184,11 +221,22 @@ export function PhotoUploader({
             className="hidden"
             onChange={(e) => handleUpload(e.target.files)}
           />
+          <input
+            ref={editInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              startEditFlow(e.target.files);
+              if (editInputRef.current) editInputRef.current.value = "";
+            }}
+          />
           <Button
             type="button"
             size="sm"
             variant="outline"
-            disabled={uploading || pending}
+            disabled={uploading || pending || editorQueue !== null}
             onClick={() => inputRef.current?.click()}
           >
             {uploading ? (
@@ -205,6 +253,16 @@ export function PhotoUploader({
               </>
             )}
           </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={uploading || pending || editorQueue !== null}
+            onClick={() => editInputRef.current?.click()}
+          >
+            <Highlighter className="mr-1.5 size-4" />
+            Marcar e adicionar
+          </Button>
           <span className="text-xs text-muted-foreground hidden sm:inline">
             ou arraste e solte aqui
           </span>
@@ -218,6 +276,23 @@ export function PhotoUploader({
             Solte as fotos para enviar
           </div>
         </div>
+      ) : null}
+
+      {editorQueue && editorQueue.remaining[0] ? (
+        <PhotoEditor
+          key={`${editorQueue.processed.length}-${editorQueue.remaining[0].name}-${editorQueue.remaining[0].size}`}
+          file={editorQueue.remaining[0]}
+          queueLabel={
+            editorQueue.remaining.length + editorQueue.processed.length > 1
+              ? `${editorQueue.processed.length + 1} / ${
+                  editorQueue.processed.length + editorQueue.remaining.length
+                }`
+              : undefined
+          }
+          onConfirm={handleEditorConfirm}
+          onSkip={handleEditorSkip}
+          onCancel={handleEditorCancel}
+        />
       ) : null}
     </div>
   );
