@@ -20,6 +20,7 @@ import {
   achados,
 } from "@/db/schema";
 import { formatDateBR } from "@/lib/format";
+import { VISTORIA_STATUS_BADGE } from "@/lib/category-styles";
 import { UnidadeFormDialog } from "../../unidade-form";
 import { deleteUnidadeAction } from "../../actions";
 import { NovaVistoriaDialog } from "./nova-vistoria-dialog";
@@ -176,9 +177,10 @@ export default async function UnidadeDetailPage({
                       ) : null}
                     </div>
                     <Badge
-                      variant={v.status === "finalizada" ? "default" : "secondary"}
+                      variant="outline"
+                      className={VISTORIA_STATUS_BADGE[v.status].className}
                     >
-                      {v.status === "finalizada" ? "Finalizada" : "Rascunho"}
+                      {VISTORIA_STATUS_BADGE[v.status].label}
                     </Badge>
                   </CardHeader>
                 </Card>

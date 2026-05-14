@@ -16,6 +16,13 @@ import {
   CATEGORIA_LABELS,
 } from "@/db/schema";
 import { formatDateBR, formatDateTimeBR } from "@/lib/format";
+import {
+  CATEGORIA_BADGE_CLASS,
+  CATEGORIA_STRIPE_BORDER,
+  EVENTO_BADGE,
+  VISTORIA_STATUS_BADGE,
+} from "@/lib/category-styles";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -56,20 +63,6 @@ export async function generateMetadata({
     openGraph: { title, description, type: "article" },
   };
 }
-
-const tipoLabels: Record<string, string> = {
-  criado: "Achado criado",
-  persiste: "Persiste",
-  resolvido: "Resolvido",
-  nota: "Anotação",
-};
-
-const tipoVariants: Record<string, "default" | "secondary" | "outline"> = {
-  criado: "outline",
-  persiste: "secondary",
-  resolvido: "default",
-  nota: "outline",
-};
 
 export default async function SharePage({
   params,
@@ -170,8 +163,11 @@ export default async function SharePage({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Badge variant={vistoria.status === "finalizada" ? "default" : "secondary"}>
-                {vistoria.status === "finalizada" ? "Finalizada" : "Em andamento"}
+              <Badge
+                variant="outline"
+                className={VISTORIA_STATUS_BADGE[vistoria.status].className}
+              >
+                {VISTORIA_STATUS_BADGE[vistoria.status].label}
               </Badge>
               <Button
                 size="sm"
@@ -213,14 +209,20 @@ export default async function SharePage({
             <ul className="space-y-3">
               {visibleEventos.map((ev) => {
                 if (!ev.achado) return null;
-                const tipoLabel = tipoLabels[ev.tipo] ?? ev.tipo;
+                const eventoBadge = EVENTO_BADGE[ev.tipo];
                 return (
                   <li
                     key={ev.id}
-                    className="rounded-lg border bg-background p-4 space-y-2"
+                    className={cn(
+                      "rounded-lg border border-l-4 bg-background p-4 space-y-2 shadow-sm",
+                      CATEGORIA_STRIPE_BORDER[ev.achado.categoria],
+                    )}
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="font-mono text-xs">
+                      <Badge
+                        variant="outline"
+                        className={cn("font-mono text-xs", CATEGORIA_BADGE_CLASS[ev.achado.categoria])}
+                      >
                         {CATEGORIA_LABELS[ev.achado.categoria]}
                       </Badge>
                       {ev.achado.local ? (
@@ -228,9 +230,15 @@ export default async function SharePage({
                           {ev.achado.local}
                         </span>
                       ) : null}
-                      <Badge variant={tipoVariants[ev.tipo] ?? "outline"}>
-                        {tipoLabel}
-                      </Badge>
+                      {eventoBadge ? (
+                        <Badge variant="outline" className={eventoBadge.className}>
+                          {eventoBadge.label}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          Achado criado
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-sm whitespace-pre-line">
                       {ev.achado.descricao}

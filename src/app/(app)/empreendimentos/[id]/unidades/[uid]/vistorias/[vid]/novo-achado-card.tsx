@@ -14,6 +14,11 @@ import { deleteAchadoAction } from "./actions";
 import { EventoEditor } from "./evento-editor";
 import type { FotoView } from "@/components/photo-uploader";
 import { toast } from "sonner";
+import {
+  CATEGORIA_BADGE_CLASS,
+  CATEGORIA_STRIPE_BORDER,
+} from "@/lib/category-styles";
+import { cn } from "@/lib/utils";
 
 type Props = {
   vistoriaId: string;
@@ -51,18 +56,31 @@ export function NovoAchadoCard({
   };
 
   return (
-    <div className="rounded-lg border p-4 bg-card">
+    <div
+      className={cn(
+        "rounded-lg border border-l-4 bg-card p-4 shadow-sm",
+        CATEGORIA_STRIPE_BORDER[achado.categoria],
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1.5 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="font-mono text-xs">
+            <Badge
+              variant="outline"
+              className={cn("font-mono text-xs", CATEGORIA_BADGE_CLASS[achado.categoria])}
+            >
               {CATEGORIA_LABELS[achado.categoria]}
             </Badge>
             {achado.local ? (
               <span className="text-sm font-medium">{achado.local}</span>
             ) : null}
             {achado.status === "resolvido" ? (
-              <Badge>Resolvido</Badge>
+              <Badge
+                variant="outline"
+                className="border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
+              >
+                Resolvido
+              </Badge>
             ) : null}
           </div>
           <p className="text-sm whitespace-pre-line">{achado.descricao}</p>

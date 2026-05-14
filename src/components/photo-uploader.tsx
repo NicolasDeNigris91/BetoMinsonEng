@@ -235,7 +235,6 @@ export function PhotoUploader({
           <Button
             type="button"
             size="sm"
-            variant="outline"
             disabled={uploading || pending || editorQueue !== null}
             onClick={() => inputRef.current?.click()}
           >

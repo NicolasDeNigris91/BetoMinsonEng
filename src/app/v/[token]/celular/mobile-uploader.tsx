@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button";
 import { PhotoEditor } from "@/components/photo-editor";
 import { CATEGORIA_LABELS, type Categoria } from "@/db/schema";
 import { usePhotoUpload } from "@/lib/use-photo-upload";
+import {
+  CATEGORIA_BADGE_CLASS,
+  CATEGORIA_STRIPE_BORDER,
+} from "@/lib/category-styles";
+import { cn } from "@/lib/utils";
 
 type Item = {
   eventoId: string;
@@ -105,10 +110,18 @@ function MobileUploadCard({ item, token }: { item: Item; token: string }) {
   };
 
   return (
-    <li className="rounded-lg border bg-background p-4 space-y-3">
+    <li
+      className={cn(
+        "rounded-lg border border-l-4 bg-background p-4 space-y-3 shadow-sm",
+        CATEGORIA_STRIPE_BORDER[item.categoria],
+      )}
+    >
       <div className="space-y-1.5">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="font-mono text-xs">
+          <Badge
+            variant="outline"
+            className={cn("font-mono text-xs", CATEGORIA_BADGE_CLASS[item.categoria])}
+          >
             {CATEGORIA_LABELS[item.categoria]}
           </Badge>
           {item.local ? (

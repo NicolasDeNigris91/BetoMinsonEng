@@ -10,6 +10,12 @@ import { ensureNotaEventoAction } from "./foto-actions";
 import { EventoEditor } from "./evento-editor";
 import type { FotoView } from "@/components/photo-uploader";
 import { toast } from "sonner";
+import {
+  CATEGORIA_BADGE_CLASS,
+  CATEGORIA_STRIPE_BORDER,
+  EVENTO_BADGE,
+} from "@/lib/category-styles";
+import { cn } from "@/lib/utils";
 
 export type ChecklistEvento = {
   id: string;
@@ -27,15 +33,6 @@ type Props = {
     descricao: string;
   };
   evento: ChecklistEvento | null;
-};
-
-const stateBadge: Record<
-  "persiste" | "resolvido" | "nota",
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  resolvido: { label: "Resolvido nesta vistoria", variant: "default" },
-  persiste: { label: "Persiste", variant: "secondary" },
-  nota: { label: "Anotação", variant: "outline" },
 };
 
 export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
@@ -66,24 +63,32 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
   };
 
   const dataState = tipo ?? "none";
+  const eventoBadge = tipo && tipo !== "criado" ? EVENTO_BADGE[tipo] : null;
 
   return (
     <div
-      className="rounded-lg border p-4 transition-colors data-[state=resolvido]:bg-emerald-500/5 data-[state=persiste]:bg-amber-500/5 data-[state=nota]:bg-muted/30"
+      className={cn(
+        "rounded-lg border border-l-4 bg-card p-4 shadow-sm transition-colors",
+        CATEGORIA_STRIPE_BORDER[achado.categoria],
+        "data-[state=resolvido]:bg-emerald-500/5 data-[state=persiste]:bg-amber-500/5 data-[state=nota]:bg-muted/30",
+      )}
       data-state={dataState}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1.5 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="font-mono text-xs">
+            <Badge
+              variant="outline"
+              className={cn("font-mono text-xs", CATEGORIA_BADGE_CLASS[achado.categoria])}
+            >
               {CATEGORIA_LABELS[achado.categoria]}
             </Badge>
             {achado.local ? (
               <span className="text-sm font-medium">{achado.local}</span>
             ) : null}
-            {tipo && tipo !== "criado" ? (
-              <Badge variant={stateBadge[tipo].variant}>
-                {stateBadge[tipo].label}
+            {eventoBadge ? (
+              <Badge variant="outline" className={eventoBadge.className}>
+                {eventoBadge.label}
               </Badge>
             ) : null}
           </div>

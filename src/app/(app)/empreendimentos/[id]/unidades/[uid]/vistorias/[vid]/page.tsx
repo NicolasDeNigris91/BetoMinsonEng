@@ -16,6 +16,7 @@ import {
 } from "@/db/schema";
 import { env } from "@/lib/env";
 import { formatDateBR } from "@/lib/format";
+import { VISTORIA_STATUS_BADGE } from "@/lib/category-styles";
 import { AchadoChecklistRow } from "./achado-checklist-row";
 import { AchadoFormDialog } from "./novo-achado-dialog";
 import { MobileUploadButton } from "./mobile-upload-button";
@@ -151,8 +152,11 @@ export default async function VistoriaPage({
             <h1 className="text-2xl font-semibold tracking-tight">
               Vistoria de {formatDateBR(vistoria.data)}
             </h1>
-            <Badge variant={isDraft ? "secondary" : "default"}>
-              {isDraft ? "Rascunho" : "Finalizada"}
+            <Badge
+              variant="outline"
+              className={VISTORIA_STATUS_BADGE[vistoria.status].className}
+            >
+              {VISTORIA_STATUS_BADGE[vistoria.status].label}
             </Badge>
           </div>
           {vistoria.vistoriadorNome ? (

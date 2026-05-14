@@ -12,7 +12,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b bg-background">
+      <header className="border-b bg-background relative">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
           <Link href="/" className="flex items-center gap-2.5">
             <Image
@@ -28,13 +28,17 @@ export default async function AppLayout({
           <nav className="flex items-center gap-4 text-sm">
             <Link
               href="/empreendimentos"
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted-foreground hover:text-brand transition-colors"
             >
               Empreendimentos
             </Link>
             <LogoutButton />
           </nav>
         </div>
+        <div
+          className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-brand to-transparent opacity-60"
+          aria-hidden
+        />
       </header>
       <main className="flex-1">
         <div className="mx-auto max-w-6xl px-4 py-8">{children}</div>
