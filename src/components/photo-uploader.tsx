@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, X, Loader2, Upload, Highlighter } from "lucide-react";
+import { ImagePlus, X, Loader2, Upload, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PhotoEditor } from "@/components/photo-editor";
@@ -259,7 +259,7 @@ export function PhotoUploader({
             disabled={uploading || pending || editorQueue !== null}
             onClick={() => editInputRef.current?.click()}
           >
-            <Highlighter className="mr-1.5 size-4" />
+            <PenLine className="mr-1.5 size-4" />
             Marcar e adicionar
           </Button>
           <span className="text-xs text-muted-foreground hidden sm:inline">

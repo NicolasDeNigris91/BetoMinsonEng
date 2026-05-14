@@ -111,7 +111,7 @@ export default async function EmpreendimentoDetailPage({
               <UnidadeFormDialog
                 empreendimentoId={emp.id}
                 trigger={
-                  <Button variant="outline" size="sm" className="mt-3">
+                  <Button size="sm" className="mt-3">
                     <Plus className="mr-1.5 size-4" />
                     Adicionar unidade
                   </Button>

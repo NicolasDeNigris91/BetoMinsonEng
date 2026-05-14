@@ -68,7 +68,7 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-l-4 bg-card p-4 shadow-sm transition-colors",
+        "rounded-lg border border-l-4 bg-card p-4 shadow-sm transition-all hover:-translate-y-px hover:shadow-md",
         CATEGORIA_STRIPE_BORDER[achado.categoria],
         "data-[state=resolvido]:bg-emerald-500/5 data-[state=persiste]:bg-amber-500/5 data-[state=nota]:bg-muted/30",
       )}
@@ -98,9 +98,14 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
           <Button
             type="button"
             size="sm"
-            variant={isPersiste ? "secondary" : "ghost"}
+            variant="ghost"
             disabled={pending}
             onClick={() => setState("persiste")}
+            className={cn(
+              isPersiste &&
+                "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:hover:bg-amber-900/60",
+            )}
+            aria-pressed={isPersiste}
           >
             <AlertCircle className="mr-1 size-4" />
             Persiste
@@ -108,9 +113,14 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
           <Button
             type="button"
             size="sm"
-            variant={isResolvido ? "default" : "ghost"}
+            variant="ghost"
             disabled={pending}
             onClick={() => setState("resolvido")}
+            className={cn(
+              isResolvido &&
+                "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:hover:bg-emerald-900/60",
+            )}
+            aria-pressed={isResolvido}
           >
             <CheckCircle2 className="mr-1 size-4" />
             Resolvido

@@ -74,7 +74,7 @@ export function VistoriaActionsBar({
           />
         }
       >
-        <FileDown className="mr-1.5 size-4" />
+        <FileDown className="mr-1.5 size-4 text-red-600 dark:text-red-500" />
         Exportar PDF
       </Button>
       {status === "rascunho" ? (
@@ -110,7 +110,13 @@ export function VistoriaActionsBar({
           />
         </>
       ) : (
-        <Button size="sm" variant="outline" disabled={pending} onClick={reopen}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={pending}
+          onClick={reopen}
+          className="border-amber-300 text-amber-900 hover:bg-amber-100 hover:text-amber-900 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900/30 dark:hover:text-amber-100"
+        >
           <RotateCcw className="mr-1.5 size-4" />
           Reabrir
         </Button>

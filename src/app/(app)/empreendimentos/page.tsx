@@ -51,7 +51,7 @@ export default async function EmpreendimentosPage() {
             </p>
             <EmpreendimentoFormDialog
               trigger={
-                <Button variant="outline" className="mt-4">
+                <Button className="mt-4">
                   <Plus className="mr-1.5 size-4" />
                   Criar primeiro empreendimento
                 </Button>

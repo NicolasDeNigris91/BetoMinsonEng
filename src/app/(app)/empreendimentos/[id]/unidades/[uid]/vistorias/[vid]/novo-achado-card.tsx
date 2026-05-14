@@ -58,7 +58,7 @@ export function NovoAchadoCard({
   return (
     <div
       className={cn(
-        "rounded-lg border border-l-4 bg-card p-4 shadow-sm",
+        "rounded-lg border border-l-4 bg-card p-4 shadow-sm transition-all hover:-translate-y-px hover:shadow-md",
         CATEGORIA_STRIPE_BORDER[achado.categoria],
       )}
     >

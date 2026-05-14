@@ -148,7 +148,7 @@ export default async function UnidadeDetailPage({
               <NovaVistoriaDialog
                 unidadeId={unidade.id}
                 trigger={
-                  <Button variant="outline" size="sm" className="mt-3">
+                  <Button size="sm" className="mt-3">
                     <Plus className="mr-1.5 size-4" />
                     Criar primeira vistoria
                   </Button>

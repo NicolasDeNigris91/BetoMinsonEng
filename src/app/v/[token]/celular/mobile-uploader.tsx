@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, ImagePlus, Loader2, Check, Highlighter } from "lucide-react";
+import { Camera, ImagePlus, Loader2, Check, PenLine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PhotoEditor } from "@/components/photo-editor";
@@ -211,7 +211,7 @@ function MobileUploadCard({ item, token }: { item: Item; token: string }) {
           disabled={uploading || editorQueue !== null}
           onClick={() => editRef.current?.click()}
         >
-          <Highlighter className="mr-1.5 size-4" />
+          <PenLine className="mr-1.5 size-4" />
           Marcar e enviar
         </Button>
       </div>

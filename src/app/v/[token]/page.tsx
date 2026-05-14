@@ -180,7 +180,7 @@ export default async function SharePage({
                   />
                 }
               >
-                <FileDown className="mr-1.5 size-4" />
+                <FileDown className="mr-1.5 size-4 text-red-600 dark:text-red-500" />
                 PDF
               </Button>
             </div>
