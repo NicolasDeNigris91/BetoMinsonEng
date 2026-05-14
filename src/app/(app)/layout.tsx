@@ -11,10 +11,10 @@ export default async function AppLayout({
   await requireSession();
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-b bg-background relative">
+    <div className="bp-grid flex min-h-screen flex-col">
+      <header className="relative border-b bg-background/85 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
-          <Link href="/" className="flex items-center gap-2.5">
+          <Link href="/" className="flex items-center gap-3">
             <Image
               src="/logo-diminson.png"
               alt="DiMinson Engenharia"
@@ -23,6 +23,9 @@ export default async function AppLayout({
               priority
               className="h-9 w-auto"
             />
+            <span className="hidden font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground sm:inline">
+              Vistorias · Inspeções técnicas
+            </span>
             <span className="sr-only">DiMinson Engenharia — Vistorias</span>
           </Link>
           <nav className="flex items-center gap-4 text-sm">

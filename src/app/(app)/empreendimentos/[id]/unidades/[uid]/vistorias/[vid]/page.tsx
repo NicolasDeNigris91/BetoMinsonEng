@@ -142,7 +142,7 @@ export default async function VistoriaPage({
         </Link>
         <ChevronRight className="size-4" />
         <span className="text-foreground">
-          Vistoria {formatDateBR(vistoria.data)}
+          Vistoria <span className="font-mono">{formatDateBR(vistoria.data)}</span>
         </span>
       </nav>
 
@@ -150,7 +150,8 @@ export default async function VistoriaPage({
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">
-              Vistoria de {formatDateBR(vistoria.data)}
+              Vistoria de{" "}
+              <span className="font-mono">{formatDateBR(vistoria.data)}</span>
             </h1>
             <Badge
               variant="outline"

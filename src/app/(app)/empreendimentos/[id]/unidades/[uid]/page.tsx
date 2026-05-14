@@ -168,7 +168,8 @@ export default async function UnidadeDetailPage({
                   <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 py-4">
                     <div>
                       <CardTitle className="text-base">
-                        Vistoria de {formatDateBR(v.data)}
+                        Vistoria de{" "}
+                        <span className="font-mono">{formatDateBR(v.data)}</span>
                       </CardTitle>
                       {v.vistoriadorNome ? (
                         <CardDescription>

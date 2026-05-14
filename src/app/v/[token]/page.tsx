@@ -156,7 +156,8 @@ export default async function SharePage({
               </p>
               <h1 className="text-2xl font-semibold mt-1">{emp.nome}</h1>
               <p className="text-sm text-muted-foreground">
-                {unidade.nome} · {formatDateBR(vistoria.data)}
+                {unidade.nome} ·{" "}
+                <span className="font-mono">{formatDateBR(vistoria.data)}</span>
                 {vistoria.vistoriadorNome
                   ? ` · ${vistoria.vistoriadorNome}`
                   : ""}
@@ -287,11 +288,16 @@ export default async function SharePage({
         <div className="mx-auto max-w-4xl px-4 py-4 text-center text-xs text-muted-foreground space-y-1">
           {vistoria.finalizadaEm ? (
             <p>
-              Vistoria finalizada em {formatDateTimeBR(vistoria.finalizadaEm)}
+              Vistoria finalizada em{" "}
+              <span className="font-mono">
+                {formatDateTimeBR(vistoria.finalizadaEm)}
+              </span>
             </p>
           ) : null}
           <p>
-            Link válido até {formatDateTimeBR(share.expiraEm)}.
+            Link válido até{" "}
+            <span className="font-mono">{formatDateTimeBR(share.expiraEm)}</span>
+            .
           </p>
         </div>
       </footer>

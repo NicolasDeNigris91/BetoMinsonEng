@@ -25,6 +25,7 @@ export function LoginForm({ from }: { from: string }) {
           autoFocus
           required
           disabled={pending}
+          className="font-mono tracking-widest"
         />
       </div>
 
