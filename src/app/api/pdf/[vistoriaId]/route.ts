@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { eq, and, gt, asc } from "drizzle-orm";
+import { eq, and, gt, gte, lte, asc, count } from "drizzle-orm";
 import { db } from "@/db";
 import {
   achadoEventos,
@@ -17,6 +17,7 @@ import { formatDateBR, formatDateTimeBR } from "@/lib/format";
 import { renderHtmlToPdf } from "@/lib/pdf";
 import {
   renderPdfHtml,
+  escapeHtml,
   type PdfData,
   type PdfFoto,
   type PdfRow,
@@ -155,6 +156,24 @@ export async function GET(
     }
   }
 
+  // Protocolo VST-AAAA-NNN: ranking da vistoria dentro do ano de criacao.
+  // Calculo determinístico — conta quantas vistorias foram criadas no mesmo
+  // ano ate (e incluindo) a vistoria atual. Cresce naturalmente.
+  const year = vistoria.createdAt.getFullYear();
+  const startOfYear = new Date(year, 0, 1);
+  const [rankRow] = await db
+    .select({ n: count() })
+    .from(vistorias)
+    .where(
+      and(
+        gte(vistorias.createdAt, startOfYear),
+        lte(vistorias.createdAt, vistoria.createdAt),
+      ),
+    );
+  const rank = Math.max(1, Number(rankRow?.n ?? 1));
+  const protocolo = `VST-${year}-${String(rank).padStart(3, "0")}`;
+  const isRascunho = vistoria.status === "rascunho";
+
   const data: PdfData = {
     empreendimentoNome: emp.nome,
     empreendimentoCliente: emp.cliente,
@@ -169,13 +188,40 @@ export async function GET(
       : null,
     geradoEmBR: formatDateTimeBR(new Date()),
     logoDataUri,
+    protocolo,
+    isRascunho,
   };
 
   const html = renderPdfHtml(data);
 
+  // Footer custom com identificacao em cada pagina: nome do empreendimento,
+  // unidade, data + paginacao + protocolo. Rendered pelo Chromium em
+  // <head>-less inline; estilos precisam ser todos inline ou em <style>.
+  const footerTemplate = `
+    <style>
+      .pdf-footer-inner {
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        font-size: 8px;
+        width: 100%;
+        padding: 0 10mm;
+        color: #64748b;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .pdf-footer-inner strong { color: #0f1e3a; font-weight: 700; }
+    </style>
+    <div class="pdf-footer-inner">
+      <span><strong>DiMinson Engenharia</strong> · ${escapeHtml(emp.nome)} · ${escapeHtml(unidade.nome)} · ${escapeHtml(formatDateBR(vistoria.data))}</span>
+      <span>Página <span class="pageNumber"></span> de <span class="totalPages"></span> · ${escapeHtml(protocolo)}</span>
+    </div>
+  `;
+
   let pdf: Buffer;
   try {
-    pdf = await renderHtmlToPdf(html);
+    pdf = await renderHtmlToPdf(html, { footerTemplate });
   } catch (err) {
     console.error("[pdf] render failed", err);
     return NextResponse.json(

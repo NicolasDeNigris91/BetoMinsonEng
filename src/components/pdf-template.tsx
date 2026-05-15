@@ -35,9 +35,25 @@ export type PdfData = {
   finalizadaEmBR: string | null;
   geradoEmBR: string;
   logoDataUri: string | null;
+  /** Codigo de protocolo gerado VST-AAAA-NNN. Exibido no header e footer. */
+  protocolo: string;
+  /** Vistoria ainda em rascunho — exibe watermark "RASCUNHO" no fundo
+   *  de cada pagina pra evitar envio acidental. */
+  isRascunho: boolean;
 };
 
 const BRAND_TEXT = "DiMinson Engenharia";
+
+// Ordem das materias na renderizacao — mantida fixa pra que o PDF saia
+// consistente entre vistorias.
+const ORDEM_CATEGORIA: Categoria[] = [
+  "ELE",
+  "HID",
+  "HVAC",
+  "PISCINA",
+  "ASP",
+  "SIS",
+];
 
 export function escapeHtml(value: string): string {
   return value
@@ -52,7 +68,6 @@ function escapeAttr(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 }
 
-// Cores semanticas por categoria — espelham CATEGORIA_STRIPE_BORDER do app.
 const STRIPE_COLOR: Record<Categoria, string> = {
   ELE: "#facc15",
   HID: "#3b82f6",
@@ -62,16 +77,6 @@ const STRIPE_COLOR: Record<Categoria, string> = {
   SIS: "#64748b",
 };
 
-const DOT_COLOR: Record<Categoria, string> = {
-  ELE: "#facc15",
-  HID: "#3b82f6",
-  HVAC: "#0ea5e9",
-  PISCINA: "#14b8a6",
-  ASP: "#8b5cf6",
-  SIS: "#64748b",
-};
-
-// Badge pastel por categoria (mesma logica do CATEGORIA_BADGE_CLASS).
 const BADGE: Record<Categoria, { bg: string; border: string; text: string }> = {
   ELE: { bg: "#fef9c3", border: "#fcd34d", text: "#713f12" },
   HID: { bg: "#dbeafe", border: "#93c5fd", text: "#1e3a8a" },
@@ -109,39 +114,22 @@ function eventoBadge(tipo: EventoTipo): { label: string; bg: string; border: str
   }
 }
 
-function tipoTextLabel(tipo: EventoTipo): string {
-  switch (tipo) {
-    case "criado":
-      return "achado criado";
-    case "persiste":
-      return "persiste";
-    case "resolvido":
-      return "resolvido";
-    case "nota":
-      return "anotação";
-  }
-}
-
-function tipoTextColor(tipo: EventoTipo): string {
-  switch (tipo) {
-    case "criado":
-      return "#b45309";
-    case "persiste":
-      return "#b45309";
-    case "resolvido":
-      return "#047857";
-    case "nota":
-      return "#64748b";
-  }
-}
-
-function renderAchado(row: PdfRow, vistoriadorNome: string | null): string {
+/**
+ * Renderiza um achado. `numero` e o indice global dentro do PDF
+ * (01, 02, ...), independente de matéria — facilita referência.
+ */
+function renderAchado(
+  row: PdfRow,
+  numero: number,
+  vistoriadorNome: string | null,
+): string {
   const stripe = STRIPE_COLOR[row.categoria];
-  const dot = DOT_COLOR[row.categoria];
   const badge = BADGE[row.categoria];
   const evBadge = eventoBadge(row.evento.tipo);
+  const nFotos = row.evento.fotos.length;
 
   const headerInner = `
+    <span class="achado-num">${String(numero).padStart(2, "0")}</span>
     <span class="cat-badge" style="background:${badge.bg};border-color:${badge.border};color:${badge.text}">
       ${escapeHtml(CATEGORIA_LABELS[row.categoria])}
     </span>
@@ -157,34 +145,62 @@ function renderAchado(row: PdfRow, vistoriadorNome: string | null): string {
     ? `<p class="nota-extra"><em>Atualização:</em> ${escapeHtml(row.evento.notaExtra)}</p>`
     : "";
 
-  const fotosHtml = row.evento.fotos.length
-    ? `<div class="fotos-grid">${row.evento.fotos
+  // Quantidade de fotos define a largura do thumbnail. Evita 1 foto gigante
+  // (sobra de espaco a direita) e duas fotos so na esquerda (sobra parecida).
+  const fotosClass =
+    nFotos === 1
+      ? "fotos-grid qtd-1"
+      : nFotos === 2
+        ? "fotos-grid qtd-2"
+        : "fotos-grid qtd-3";
+
+  const fotosHtml = nFotos
+    ? `<div class="${fotosClass}">${row.evento.fotos
         .map(
           (f) => `<figure class="foto">
-            <img src="${escapeAttr(f.dataUri)}" alt="${escapeAttr(f.legenda ?? "")}" />
+            <img src="${escapeAttr(f.dataUri)}" alt="${escapeAttr(f.legenda ?? "Foto do achado")}" />
             ${f.legenda ? `<figcaption>${escapeHtml(f.legenda)}</figcaption>` : ""}
           </figure>`,
         )
         .join("")}</div>`
     : "";
 
+  // Audit line cliente-friendly: "Registrado em DD/MM/YYYY às HH:MM por Fulano · N fotos"
   const autorPart = vistoriadorNome
-    ? ` · ${escapeHtml(vistoriadorNome)}`
+    ? ` <span class="sep">·</span> por <span class="autor">${escapeHtml(vistoriadorNome)}</span>`
     : "";
+  const fotosBadge =
+    nFotos > 0
+      ? ` <span class="sep">·</span> <span class="photos-count">📷 ${nFotos} ${nFotos === 1 ? "foto" : "fotos"}</span>`
+      : "";
 
   return `<li class="achado" style="border-left-color:${stripe}">
     <div class="achado-header">${headerInner}</div>
     <p class="descricao">${escapeHtml(row.descricao)}</p>
     ${nota}
     <p class="audit">
-      <span class="dot" style="background:${dot}"></span>
-      <span class="categoria-lower">${escapeHtml(CATEGORIA_LABELS[row.categoria].toLowerCase())}</span>
-      <span class="tipo" style="color:${tipoTextColor(row.evento.tipo)}">${tipoTextLabel(row.evento.tipo)}</span>
-      <span class="sep">·</span>
-      <span class="data">${escapeHtml(row.evento.createdAtBR)}</span>${autorPart}
+      Registrado em <span class="data">${escapeHtml(row.evento.createdAtBR)}</span>${autorPart}${fotosBadge}
     </p>
     ${fotosHtml}
   </li>`;
+}
+
+/**
+ * Agrupa as rows por categoria preservando ORDEM_CATEGORIA. Achados dentro
+ * de cada matéria saem na ordem que vieram (a rota ja ordena por
+ * categoria + createdAt).
+ */
+function groupByCategoria(rows: PdfRow[]): { categoria: Categoria; rows: PdfRow[] }[] {
+  const map = new Map<Categoria, PdfRow[]>();
+  for (const row of rows) {
+    const arr = map.get(row.categoria) ?? [];
+    arr.push(row);
+    map.set(row.categoria, arr);
+  }
+  return ORDEM_CATEGORIA.filter((c) => map.has(c)).map((c) => ({
+    categoria: c,
+    rows: map.get(c)!,
+  }));
 }
 
 export function renderPdfHtml(data: PdfData): string {
@@ -199,10 +215,35 @@ export function renderPdfHtml(data: PdfData): string {
     ? `<img src="${escapeAttr(data.logoDataUri)}" alt="Logo" class="logo-img" />`
     : `<span class="brand-text">${BRAND_TEXT}</span>`;
 
-  const achadosHtml =
+  // Numera os achados sequencialmente DENTRO do PDF (01..N).
+  // Numeracao e global, nao por matéria — fica mais facil de referenciar.
+  let counter = 0;
+  const grupos = groupByCategoria(data.rows);
+  const gruposHtml = grupos
+    .map((g) => {
+      const sectionClass = `section-materia mat-${g.categoria}`;
+      const dotColor = STRIPE_COLOR[g.categoria];
+      const achadosHtml = g.rows
+        .map((row) => {
+          counter += 1;
+          return renderAchado(row, counter, data.vistoriadorNome);
+        })
+        .join("");
+      return `
+        <div class="${sectionClass}">
+          <span class="materia-dot" style="background:${dotColor}"></span>
+          <h3 class="materia-nome">${escapeHtml(CATEGORIA_LABELS[g.categoria])}</h3>
+          <span class="materia-count">${g.rows.length} ${g.rows.length === 1 ? "achado" : "achados"}</span>
+        </div>
+        <ul class="achados">${achadosHtml}</ul>
+      `;
+    })
+    .join("");
+
+  const conteudoHtml =
     data.rows.length === 0
-      ? `<li class="empty">Nenhum achado registrado nesta vistoria.</li>`
-      : data.rows.map((row) => renderAchado(row, data.vistoriadorNome)).join("");
+      ? `<p class="empty">Nenhum achado registrado nesta vistoria.</p>`
+      : gruposHtml;
 
   const obsHtml = data.observacoesGerais
     ? `<section class="obs">
@@ -219,8 +260,6 @@ export function renderPdfHtml(data: PdfData): string {
     ? ` · ${escapeHtml(data.finalizadaEmBR)}`
     : ` · gerado em ${escapeHtml(data.geradoEmBR)}`;
 
-  const stamp = `VST · ${new Date().getFullYear()}`;
-
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -228,7 +267,7 @@ export function renderPdfHtml(data: PdfData): string {
 <title>${escapeHtml(data.empreendimentoNome)} — ${escapeHtml(data.unidadeNome)} — ${escapeHtml(data.vistoriaDataBR)}</title>
 <style>${STYLE}</style>
 </head>
-<body>
+<body class="${data.isRascunho ? "draft" : ""}">
 <header class="pdf-header">
   <div class="header-left">
     <p class="eyebrow">${eyebrowParts.map(escapeHtml).join(" · ")}</p>
@@ -243,6 +282,7 @@ export function renderPdfHtml(data: PdfData): string {
           : ""
       }
     </p>
+    <p class="protocolo">Protocolo ${escapeHtml(data.protocolo)}</p>
   </div>
   <div class="header-right">
     ${headerLogo}
@@ -252,16 +292,11 @@ export function renderPdfHtml(data: PdfData): string {
 
 <div class="header-divider"></div>
 
-<h2 class="section-title">Achados desta vistoria</h2>
-<ul class="achados">${achadosHtml}</ul>
+${conteudoHtml}
 
 ${obsHtml}
 
 <footer class="signature">
-  <div class="signature-row">
-    <div class="signature-line"></div>
-    <span class="stamp">${stamp}</span>
-  </div>
   <p class="signed-by">${signatureLine}${dateLine}</p>
 </footer>
 </body>
@@ -286,7 +321,26 @@ body {
     #fbfcfe;
 }
 
-.mono, .audit, .stat-label, .stat-value, .eyebrow, .tagline, .stamp, .cat-badge, .evento-badge {
+/* Watermark RASCUNHO — fixed permite que apareca em cada pagina impressa.
+ * Chromium repete elementos position:fixed em cada folha do PDF. */
+body.draft::before {
+  content: 'RASCUNHO';
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-30deg);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 130pt;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: rgba(220, 38, 38, 0.08);
+  z-index: 0;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.mono, .audit, .eyebrow, .tagline, .cat-badge, .evento-badge, .achado-num,
+.protocolo, .materia-count {
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
@@ -298,6 +352,8 @@ body {
   align-items: flex-start;
   gap: 24px;
   padding-bottom: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .header-left { flex: 1; min-width: 0; }
@@ -336,6 +392,14 @@ body {
   letter-spacing: -0.01em;
 }
 
+.protocolo {
+  margin: 4px 0 0;
+  font-size: 8pt;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(15, 30, 58, 0.5);
+}
+
 .header-right {
   text-align: right;
   display: flex;
@@ -369,67 +433,65 @@ body {
   background: linear-gradient(90deg, transparent 0%, #ff8000 50%, transparent 100%);
   opacity: 0.7;
   margin-bottom: 16px;
+  position: relative;
+  z-index: 1;
 }
 
-/* ============ STAT ROW ============ */
+/* ============ SECTION POR MATERIA ============ */
 
-.stat-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 18px;
+.section-materia {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid;
+  position: relative;
+  z-index: 1;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+.section-materia.mat-ELE { border-color: #facc15; }
+.section-materia.mat-HID { border-color: #3b82f6; }
+.section-materia.mat-HVAC { border-color: #0ea5e9; }
+.section-materia.mat-PISCINA { border-color: #14b8a6; }
+.section-materia.mat-ASP { border-color: #8b5cf6; }
+.section-materia.mat-SIS { border-color: #64748b; }
+
+.materia-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
 }
 
-.stat {
-  background: #ffffff;
-  border: 1px solid rgba(15,30,58,0.18);
-  border-radius: 4px;
-  padding: 10px 12px;
-}
-
-.stat-label {
+.materia-nome {
   margin: 0;
-  font-size: 8pt;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(15,30,58,0.55);
-  font-weight: 500;
-}
-
-.stat-value {
-  margin: 2px 0 0;
-  font-size: 22pt;
+  font-size: 13pt;
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  color: #0f1e3a;
-}
-
-.stat-value.accent { color: #ff8000; }
-
-/* ============ SECTIONS ============ */
-
-.section-title {
-  font-size: 9pt;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgba(15,30,58,0.7);
-  margin: 0 0 10px;
+  letter-spacing: -0.01em;
+  flex: 1;
   font-family: 'Inter', sans-serif;
 }
 
-.section-title-spaced { margin-top: 4px; }
+.materia-count {
+  font-size: 9pt;
+  color: rgba(15, 30, 58, 0.55);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 
-/* ============ ACHADOS LIST ============ */
+/* ============ ACHADOS ============ */
 
 .achados {
   list-style: none;
-  margin: 0;
+  margin: 0 0 12px;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  position: relative;
+  z-index: 1;
 }
 
 .achado {
@@ -448,6 +510,17 @@ body {
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
+}
+
+.achado-num {
+  background: #0f1e3a;
+  color: #fff;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 9pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
 }
 
 .cat-badge {
@@ -476,7 +549,7 @@ body {
 }
 
 .descricao {
-  margin: 0;
+  margin: 4px 0 6px;
   white-space: pre-wrap;
   font-size: 10pt;
 }
@@ -493,32 +566,20 @@ body {
 
 .audit {
   margin: 8px 0 0;
-  font-size: 8pt;
+  font-size: 8.5pt;
   color: rgba(15,30,58,0.6);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
 }
 
-.audit .dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-.audit .categoria-lower { color: rgba(15,30,58,0.7); }
-
-.audit .tipo {
-  font-weight: 700;
-}
-
-.audit .sep { color: rgba(15,30,58,0.35); }
-
+.audit .sep { color: rgba(15,30,58,0.3); margin: 0 2px; }
 .audit .data {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+  color: rgba(15, 30, 58, 0.75);
+}
+.audit .autor { color: rgba(15, 30, 58, 0.75); }
+.audit .photos-count {
+  color: rgba(15, 30, 58, 0.7);
+  font-weight: 600;
 }
 
 .empty {
@@ -528,8 +589,11 @@ body {
   background: #ffffff;
   border: 1px dashed rgba(15,30,58,0.2);
   border-radius: 4px;
-  list-style: none;
+  position: relative;
+  z-index: 1;
 }
+
+/* ============ FOTOS — LAYOUT ADAPTATIVO ============ */
 
 .fotos-grid {
   display: flex;
@@ -540,10 +604,15 @@ body {
 
 .fotos-grid .foto {
   margin: 0;
-  width: calc(33.33% - 4px);
   page-break-inside: avoid;
   break-inside: avoid;
 }
+
+/* 1 foto = 60% pra nao ficar gigante. 2 fotos = lado a lado (50/50).
+ * 3+ fotos = 3 por linha (33% cada). */
+.fotos-grid.qtd-1 .foto { width: 60%; }
+.fotos-grid.qtd-2 .foto { width: calc(50% - 3px); }
+.fotos-grid.qtd-3 .foto { width: calc(33.33% - 4px); }
 
 .fotos-grid .foto img {
   width: 100%;
@@ -569,6 +638,18 @@ body {
   border: 1px solid rgba(15,30,58,0.18);
   border-left: 3px solid #ff8000;
   border-radius: 4px;
+  position: relative;
+  z-index: 1;
+}
+
+.section-title {
+  font-size: 9pt;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(15,30,58,0.7);
+  margin: 0 0 10px;
+  font-family: 'Inter', sans-serif;
 }
 
 .obs .section-title { margin: 0 0 6px; }
@@ -582,32 +663,12 @@ body {
 /* ============ SIGNATURE ============ */
 
 .signature {
-  margin-top: 28px;
+  margin-top: 22px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(15,30,58,0.25);
+  position: relative;
+  z-index: 1;
   page-break-inside: avoid;
-}
-
-.signature-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-
-.signature-line {
-  border-top: 1px dashed rgba(15,30,58,0.4);
-  width: 40%;
-  height: 16px;
-}
-
-.stamp {
-  display: inline-block;
-  padding: 2px 6px;
-  border: 1px solid rgba(15,30,58,0.3);
-  border-radius: 2px;
-  font-size: 7pt;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(15,30,58,0.55);
 }
 
 .signed-by {
@@ -615,5 +676,6 @@ body {
   font-size: 8.5pt;
   color: rgba(15,30,58,0.6);
   letter-spacing: 0.04em;
+  text-align: right;
 }
 `;

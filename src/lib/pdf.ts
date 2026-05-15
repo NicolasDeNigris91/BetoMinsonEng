@@ -35,7 +35,23 @@ export async function closeBrowser(): Promise<void> {
   }
 }
 
-export async function renderHtmlToPdf(html: string): Promise<Buffer> {
+export type RenderPdfOptions = {
+  /** HTML do template de footer rodado em cada pagina pela engine do
+   *  Chromium. Tem acesso a <span class="pageNumber"></span> e <span
+   *  class="totalPages"></span> pra numeracao automatica. Default exibe
+   *  apenas "Pagina X de Y". */
+  footerTemplate?: string;
+};
+
+const DEFAULT_FOOTER = `
+  <div style="font-size:9px;width:100%;text-align:center;color:#555;padding:0 10mm;">
+    Página <span class="pageNumber"></span> de <span class="totalPages"></span>
+  </div>`;
+
+export async function renderHtmlToPdf(
+  html: string,
+  options: RenderPdfOptions = {},
+): Promise<Buffer> {
   const browser = await getBrowser();
   const context = await browser.newContext({ viewport: { width: 794, height: 1123 } });
   const page = await context.newPage();
@@ -45,16 +61,13 @@ export async function renderHtmlToPdf(html: string): Promise<Buffer> {
     printBackground: true,
     margin: {
       top: "12mm",
-      bottom: "16mm",
+      bottom: "18mm",
       left: "10mm",
       right: "10mm",
     },
     displayHeaderFooter: true,
     headerTemplate: "<span></span>",
-    footerTemplate: `
-      <div style="font-size:9px;width:100%;text-align:center;color:#555;padding:0 10mm;">
-        Página <span class="pageNumber"></span> de <span class="totalPages"></span>
-      </div>`,
+    footerTemplate: options.footerTemplate ?? DEFAULT_FOOTER,
   });
   await context.close();
   return pdf;
