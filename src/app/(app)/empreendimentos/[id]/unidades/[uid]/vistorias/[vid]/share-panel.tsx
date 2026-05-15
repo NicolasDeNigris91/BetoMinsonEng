@@ -14,6 +14,7 @@ import {
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
 import { formatDateTimeBR } from "@/lib/format";
+import { isNextRedirectError } from "@/lib/next-errors";
 import {
   createShareTokenAction,
   revokeShareTokenAction,
@@ -43,6 +44,10 @@ export function SharePanel({ vistoriaId, baseUrl, tokens }: Props) {
         await createShareTokenAction(vistoriaId);
         toast.success("Link gerado");
       } catch (err) {
+        if (isNextRedirectError(err)) {
+          setBusy(false);
+          throw err;
+        }
         toast.error(err instanceof Error ? err.message : "Erro");
       } finally {
         setBusy(false);
@@ -57,6 +62,10 @@ export function SharePanel({ vistoriaId, baseUrl, tokens }: Props) {
           await revokeShareTokenAction(tokenId);
           toast.success("Link revogado");
         } catch (err) {
+          if (isNextRedirectError(err)) {
+            resolve();
+            throw err;
+          }
           toast.error(err instanceof Error ? err.message : "Erro");
         } finally {
           resolve();

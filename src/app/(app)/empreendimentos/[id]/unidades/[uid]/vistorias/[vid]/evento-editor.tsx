@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { PhotoUploader, type FotoView } from "@/components/photo-uploader";
+import { isNextRedirectError } from "@/lib/next-errors";
 import { updateEventoNotaAction } from "./foto-actions";
 
 type Props = {
@@ -46,6 +47,7 @@ export function EventoEditor({
         setSavedNota(nota);
         toast.success("Nota salva");
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Erro ao salvar");
       }
     });

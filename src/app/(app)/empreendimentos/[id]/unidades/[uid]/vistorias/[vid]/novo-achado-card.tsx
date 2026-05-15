@@ -19,6 +19,7 @@ import {
   CATEGORIA_STRIPE_BORDER,
 } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
+import { isNextRedirectError } from "@/lib/next-errors";
 
 function fileUrl(path: string, token?: string): string {
   const base = `/api/files/${path}`;
@@ -52,6 +53,10 @@ export function NovoAchadoCard({
         try {
           await deleteAchadoAction(achado.id, vistoriaId);
         } catch (err) {
+          if (isNextRedirectError(err)) {
+            resolve();
+            throw err;
+          }
           toast.error(err instanceof Error ? err.message : "Erro inesperado");
         } finally {
           resolve();

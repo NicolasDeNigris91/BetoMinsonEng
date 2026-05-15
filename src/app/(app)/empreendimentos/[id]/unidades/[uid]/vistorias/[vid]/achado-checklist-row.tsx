@@ -16,6 +16,7 @@ import {
   EVENTO_BADGE,
 } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
+import { isNextRedirectError } from "@/lib/next-errors";
 
 export type ChecklistEvento = {
   id: string;
@@ -47,6 +48,7 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
       try {
         await setAchadoStateInVistoriaAction(vistoriaId, achado.id, next);
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Erro inesperado");
       }
     });
@@ -57,6 +59,7 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
       try {
         await ensureNotaEventoAction(vistoriaId, achado.id);
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Erro inesperado");
       }
     });

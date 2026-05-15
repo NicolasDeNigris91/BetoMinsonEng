@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { isNextRedirectError } from "@/lib/next-errors";
 
 type Props = {
   trigger: React.ReactElement;
@@ -39,6 +40,7 @@ export function ConfirmDialog({
         await onConfirm();
         setOpen(false);
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Erro inesperado");
       }
     });

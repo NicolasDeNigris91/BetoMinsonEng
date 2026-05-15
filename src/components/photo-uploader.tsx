@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PhotoEditor } from "@/components/photo-editor";
 import { usePhotoUpload } from "@/lib/use-photo-upload";
+import { isNextRedirectError } from "@/lib/next-errors";
 import {
   deleteFotoAction,
   updateLegendaAction,
@@ -159,6 +160,7 @@ export function PhotoUploader({
       try {
         await deleteFotoAction(id);
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Erro ao excluir");
       }
     });
@@ -170,6 +172,7 @@ export function PhotoUploader({
       try {
         await updateLegendaAction(id, current);
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Erro ao salvar");
       }
     });

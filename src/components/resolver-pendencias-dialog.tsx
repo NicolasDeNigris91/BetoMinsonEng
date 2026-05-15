@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { CATEGORIA_LABELS, type Categoria } from "@/db/schema";
 import { CATEGORIA_BADGE_CLASS } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
+import { isNextRedirectError } from "@/lib/next-errors";
 import { resolveAchadoRetroactiveAction } from "@/app/(app)/empreendimentos/[id]/unidades/[uid]/actions";
 
 export type PendenciaView = {
@@ -77,6 +78,7 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaView }) {
         setResolved(next === "resolvido");
         router.refresh();
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Erro inesperado");
       }
     });

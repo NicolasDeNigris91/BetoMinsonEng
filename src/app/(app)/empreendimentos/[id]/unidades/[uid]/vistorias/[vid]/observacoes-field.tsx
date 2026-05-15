@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { isNextRedirectError } from "@/lib/next-errors";
 import { updateObservacoesAction } from "./actions";
 
 const DEBOUNCE_MS = 1000;
@@ -59,6 +60,7 @@ export function ObservacoesField({
         setSavedValue(snapshot);
         setLastSavedAt(new Date());
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Erro ao salvar");
         // mantem dirty=true → proximo onChange/blur agenda novo save
       }

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { formatDateTimeBR } from "@/lib/format";
+import { isNextRedirectError } from "@/lib/next-errors";
 import {
   createUploadTokenAction,
   revokeUploadTokenAction,
@@ -49,6 +50,7 @@ export function MobileUploadButton({ vistoriaId, baseUrl, activeToken }: Props) 
         await createUploadTokenAction(vistoriaId);
         toast.success("Link gerado");
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Erro ao gerar link");
       }
     });
@@ -61,6 +63,10 @@ export function MobileUploadButton({ vistoriaId, baseUrl, activeToken }: Props) 
           await revokeUploadTokenAction(vistoriaId);
           toast.success("Link revogado");
         } catch (err) {
+          if (isNextRedirectError(err)) {
+            resolve();
+            throw err;
+          }
           toast.error(err instanceof Error ? err.message : "Erro");
         } finally {
           resolve();

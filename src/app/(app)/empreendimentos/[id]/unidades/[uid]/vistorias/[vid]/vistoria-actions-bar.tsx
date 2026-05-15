@@ -5,6 +5,7 @@ import { CheckCheck, FileDown, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useUploadInFlight } from "@/lib/upload-in-flight";
+import { isNextRedirectError } from "@/lib/next-errors";
 import { toast } from "sonner";
 import {
   finalizeVistoriaAction,
@@ -36,6 +37,10 @@ export function VistoriaActionsBar({
           await finalizeVistoriaAction(vistoriaId);
           toast.success("Vistoria finalizada");
         } catch (err) {
+          if (isNextRedirectError(err)) {
+            resolve();
+            throw err;
+          }
           toast.error(err instanceof Error ? err.message : "Erro");
         } finally {
           resolve();
@@ -50,6 +55,10 @@ export function VistoriaActionsBar({
           await reopenVistoriaAction(vistoriaId);
           toast.success("Vistoria reaberta");
         } catch (err) {
+          if (isNextRedirectError(err)) {
+            resolve();
+            throw err;
+          }
           toast.error(err instanceof Error ? err.message : "Erro");
         } finally {
           resolve();
@@ -63,6 +72,10 @@ export function VistoriaActionsBar({
         try {
           await deleteVistoriaFromEditPageAction(vistoriaId);
         } catch (err) {
+          if (isNextRedirectError(err)) {
+            resolve();
+            throw err;
+          }
           toast.error(err instanceof Error ? err.message : "Erro");
         } finally {
           resolve();
