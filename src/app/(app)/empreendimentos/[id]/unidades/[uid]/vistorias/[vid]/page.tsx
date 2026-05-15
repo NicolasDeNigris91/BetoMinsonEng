@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, and, ne, asc, gt, desc } from "drizzle-orm";
-import { ChevronRight } from "lucide-react";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { db } from "@/db";
@@ -127,33 +126,21 @@ export default async function VistoriaPage({
   return (
     <UploadInFlightProvider>
     <div className="space-y-6">
-      <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-        <Link href="/empreendimentos" className="hover:text-foreground">
-          Empreendimentos
-        </Link>
-        <ChevronRight className="size-4" />
-        <Link href={`/empreendimentos/${id}`} className="hover:text-foreground">
-          {emp.nome}
-        </Link>
-        <ChevronRight className="size-4" />
-        <Link
-          href={`/empreendimentos/${id}/unidades/${uid}`}
-          className="hover:text-foreground"
-        >
-          {unidade.nome}
-        </Link>
-        <ChevronRight className="size-4" />
-        <span className="text-foreground">
-          Vistoria <span className="font-mono">{formatDateBR(vistoria.data)}</span>
-        </span>
-      </nav>
+      <Breadcrumb
+        items={[
+          { label: "Empreendimentos", href: "/empreendimentos" },
+          { label: emp.nome, href: `/empreendimentos/${id}` },
+          { label: unidade.nome, href: `/empreendimentos/${id}/unidades/${uid}` },
+          { label: `Vistoria ${formatDateBR(vistoria.data)}` },
+        ]}
+      />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
               Vistoria de{" "}
-              <span className="font-mono">{formatDateBR(vistoria.data)}</span>
+              <span className="font-tech">{formatDateBR(vistoria.data)}</span>
             </h1>
             <Badge
               variant="outline"
@@ -196,10 +183,10 @@ export default async function VistoriaPage({
       {isDraft ? (
         <section className="space-y-3">
           <div>
-            <h2 className="text-lg font-medium">
+            <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
               Achados em aberto da unidade
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
               Marque cada um como resolvido ou que persiste. Os não marcados são
               ignorados nesta vistoria.
             </p>
@@ -251,10 +238,10 @@ export default async function VistoriaPage({
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-medium">
+            <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
               {isDraft ? "Achados criados nesta vistoria" : "Achados desta vistoria"}
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
               {novosAchados.length} {novosAchados.length === 1 ? "achado" : "achados"}
             </p>
           </div>

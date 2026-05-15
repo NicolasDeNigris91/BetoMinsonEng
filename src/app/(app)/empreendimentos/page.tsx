@@ -25,7 +25,7 @@ export default async function EmpreendimentosPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
             Empreendimentos
           </h1>
           <p className="text-sm text-muted-foreground">

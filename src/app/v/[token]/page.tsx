@@ -151,13 +151,15 @@ export default async function SharePage({
           />
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground">
                 Vistoria de instalações
               </p>
-              <h1 className="text-2xl font-semibold mt-1">{emp.nome}</h1>
+              <h1 className="mt-1 text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
+                {emp.nome}
+              </h1>
               <p className="text-sm text-muted-foreground">
                 {unidade.nome} ·{" "}
-                <span className="font-mono">{formatDateBR(vistoria.data)}</span>
+                <span className="font-tech">{formatDateBR(vistoria.data)}</span>
                 {vistoria.vistoriadorNome
                   ? ` · ${vistoria.vistoriadorNome}`
                   : ""}
@@ -193,7 +195,7 @@ export default async function SharePage({
         <div className="mx-auto max-w-4xl px-4 py-8 space-y-4">
           {vistoria.observacoesGerais ? (
             <section className="rounded-lg border bg-background p-4">
-              <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
                 Observações gerais
               </h2>
               <p className="mt-2 text-sm whitespace-pre-line">

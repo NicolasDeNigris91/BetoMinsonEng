@@ -77,3 +77,9 @@ export const VISTORIA_STATUS_BADGE: Record<VistoriaStatus, StyledBadge> = {
     label: "Finalizada",
   },
 };
+
+/** Faixa lateral 3px nos cards de vistoria (item 4 da identidade visual). */
+export const VISTORIA_STATUS_STRIPE: Record<VistoriaStatus, string> = {
+  rascunho: "bg-amber-500 dark:bg-amber-400",
+  finalizada: "bg-emerald-500 dark:bg-emerald-400",
+};

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, asc } from "drizzle-orm";
-import { ChevronRight, Home, Pencil, Plus, Trash2 } from "lucide-react";
+import { Home, Pencil, Plus, Trash2 } from "lucide-react";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -43,17 +44,18 @@ export default async function EmpreendimentoDetailPage({
 
   return (
     <div className="space-y-6">
-      <nav className="flex items-center gap-1 text-sm text-muted-foreground">
-        <Link href="/empreendimentos" className="hover:text-foreground">
-          Empreendimentos
-        </Link>
-        <ChevronRight className="size-4" />
-        <span className="text-foreground">{emp.nome}</span>
-      </nav>
+      <Breadcrumb
+        items={[
+          { label: "Empreendimentos", href: "/empreendimentos" },
+          { label: emp.nome },
+        ]}
+      />
 
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{emp.nome}</h1>
+          <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
+            {emp.nome}
+          </h1>
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             {emp.cliente ? <span>Cliente: {emp.cliente}</span> : null}
             {emp.endereco ? <span>{emp.endereco}</span> : null}
@@ -89,7 +91,9 @@ export default async function EmpreendimentoDetailPage({
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Unidades</h2>
+          <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
+            Unidades
+          </h2>
           <UnidadeFormDialog
             empreendimentoId={emp.id}
             trigger={
