@@ -122,6 +122,7 @@ export async function POST(req: Request) {
     .select({
       id: achadoEventos.id,
       vistoriaId: achadoEventos.vistoriaId,
+      tipo: achadoEventos.tipo,
       vistoriaStatus: vistorias.status,
     })
     .from(achadoEventos)
@@ -135,9 +136,20 @@ export async function POST(req: Request) {
       { status: 404 },
     );
   }
-  if (evento.vistoriaStatus === "finalizada") {
+  // Trava so o evento "criado" em vistoria finalizada — esse representa
+  // o registro original da visita e nao deve receber fotos depois sem
+  // reabrir. Outros tipos (resolvido/persiste/nota) sao por design
+  // retroativos: podem receber fotos de comprovacao mesmo em vistoria
+  // ja finalizada.
+  if (
+    evento.vistoriaStatus === "finalizada" &&
+    evento.tipo === "criado"
+  ) {
     return NextResponse.json(
-      { error: "Vistoria finalizada. Reabra antes de adicionar fotos." },
+      {
+        error:
+          "Vistoria finalizada. Reabra antes de adicionar fotos ao achado original.",
+      },
       { status: 409 },
     );
   }
