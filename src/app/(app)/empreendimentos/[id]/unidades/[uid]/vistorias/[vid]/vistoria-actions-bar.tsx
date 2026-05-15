@@ -116,7 +116,7 @@ export function VistoriaActionsBar({
                 variant="ghost"
                 disabled={pending || uploading}
                 aria-label="Excluir vistoria"
-                title={blockedReason}
+                title={blockedReason ?? "Excluir vistoria"}
               >
                 <Trash2 className="size-4" />
               </Button>
