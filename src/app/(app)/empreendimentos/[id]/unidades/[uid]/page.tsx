@@ -188,6 +188,23 @@ export default async function UnidadeDetailPage({
   const setPresente = new Set(categoriasPresentesRows.map((r) => r.categoria));
   const categoriasNaUnidade = ORDEM_CATEGORIA.filter((c) => setPresente.has(c));
 
+  // Pendencias globais da unidade — alimenta o botao "Resolver pendencias"
+  // no header. Se existe rascunho ativa, pre-carrega o estado ja marcado
+  // pra cada achado nela; senao, todos comecam sem marcacao.
+  const latestRascunho = vistoriasList.find((v) => v.status === "rascunho");
+  const pendenciasGlobais: PendenciaView[] = achadosAbertosRows.map((a) => ({
+    id: a.id,
+    categoria: a.categoria,
+    local: a.local,
+    descricao: a.descricao,
+    currentTipo: latestRascunho
+      ? ((tipoPorAchadoVistoria.get(`${latestRascunho.id}:${a.id}`) as
+          | "persiste"
+          | "resolvido"
+          | undefined) ?? null)
+      : null,
+  }));
+
   return (
     <div className="space-y-6">
       <Breadcrumb
@@ -249,19 +266,36 @@ export default async function UnidadeDetailPage({
       </div>
 
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
             Vistorias
           </h2>
-          <NovaVistoriaDialog
-            unidadeId={unidade.id}
-            trigger={
-              <Button size="sm">
-                <Plus className="mr-1.5 size-4" />
-                Nova vistoria
-              </Button>
-            }
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {pendenciasGlobais.length > 0 ? (
+              <ResolverPendenciasDialog
+                unidadeId={unidade.id}
+                pendencias={pendenciasGlobais}
+                trigger={
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md bg-brand px-3 py-1.5 font-mono text-[10px] font-bold tracking-[0.06em] uppercase text-brand-foreground shadow-[0_1px_0_rgba(255,128,0,0.4),0_4px_12px_rgba(255,128,0,0.18)] transition-transform hover:-translate-y-px"
+                  >
+                    <CheckCircle2 className="size-3.5" />
+                    Resolver pendências ({pendenciasGlobais.length})
+                  </button>
+                }
+              />
+            ) : null}
+            <NovaVistoriaDialog
+              unidadeId={unidade.id}
+              trigger={
+                <Button size="sm">
+                  <Plus className="mr-1.5 size-4" />
+                  Nova vistoria
+                </Button>
+              }
+            />
+          </div>
         </div>
 
         {vistoriasList.length === 0 ? (

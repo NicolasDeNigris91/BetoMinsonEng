@@ -18,6 +18,7 @@ import { CATEGORIA_LABELS, type Categoria } from "@/db/schema";
 import { CATEGORIA_BADGE_CLASS } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
 import { setAchadoStateInVistoriaAction } from "@/app/(app)/empreendimentos/[id]/unidades/[uid]/vistorias/[vid]/actions";
+import { ensureRascunhoForUnidadeAction } from "@/app/(app)/empreendimentos/[id]/unidades/[uid]/actions";
 
 export type PendenciaView = {
   id: string;
@@ -30,16 +31,49 @@ export type PendenciaView = {
 
 type Props = {
   trigger: React.ReactElement;
-  vistoriaId: string;
   pendencias: PendenciaView[];
-};
+} & (
+  | {
+      /** Modo direto: rascunho ja existe, marcacoes vao direto pra ela. */
+      vistoriaId: string;
+      unidadeId?: never;
+    }
+  | {
+      /** Modo lazy: o dialog cria/encontra a rascunho na primeira marcacao. */
+      unidadeId: string;
+      vistoriaId?: never;
+    }
+);
 
 export function ResolverPendenciasDialog({
   trigger,
-  vistoriaId,
   pendencias,
+  vistoriaId: initialVistoriaId,
+  unidadeId,
 }: Props) {
   const [open, setOpen] = useState(false);
+  // Quando entra em modo lazy (unidadeId), so resolve a vistoria na primeira
+  // marcacao — assim abrir e fechar o dialog sem clicar nada NAO cria
+  // rascunho fantasma.
+  const [vistoriaId, setVistoriaId] = useState<string | null>(
+    initialVistoriaId ?? null,
+  );
+  const [ensuring, setEnsuring] = useState(false);
+
+  const ensureVistoria = async (): Promise<string> => {
+    if (vistoriaId) return vistoriaId;
+    if (!unidadeId) throw new Error("Faltou unidadeId em modo lazy.");
+    setEnsuring(true);
+    try {
+      const { vistoriaId: id } = await ensureRascunhoForUnidadeAction(
+        unidadeId,
+      );
+      setVistoriaId(id);
+      return id;
+    } finally {
+      setEnsuring(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -49,15 +83,22 @@ export function ResolverPendenciasDialog({
           <DialogTitle>Resolver pendências</DialogTitle>
           <DialogDescription>
             Achados em aberto da unidade. Marque cada um como{" "}
-            <strong>Resolvido</strong> ou que <strong>Persiste</strong> — a
-            marcação fica registrada nesta vistoria rascunho.
+            <strong>Resolvido</strong> ou que <strong>Persiste</strong>.
+            {!initialVistoriaId && !vistoriaId ? (
+              <>
+                {" "}
+                Uma vistoria rascunho de hoje será criada automaticamente
+                pra registrar as marcações.
+              </>
+            ) : null}
           </DialogDescription>
         </DialogHeader>
         <ul className="max-h-[60vh] space-y-2 overflow-y-auto">
           {pendencias.map((p) => (
             <PendenciaRow
               key={p.id}
-              vistoriaId={vistoriaId}
+              ensureVistoria={ensureVistoria}
+              ensuring={ensuring}
               pendencia={p}
             />
           ))}
@@ -68,10 +109,12 @@ export function ResolverPendenciasDialog({
 }
 
 function PendenciaRow({
-  vistoriaId,
+  ensureVistoria,
+  ensuring,
   pendencia,
 }: {
-  vistoriaId: string;
+  ensureVistoria: () => Promise<string>;
+  ensuring: boolean;
   pendencia: PendenciaView;
 }) {
   const router = useRouter();
@@ -81,11 +124,8 @@ function PendenciaRow({
   const setState = (next: "persiste" | "resolvido" | "none") => {
     start(async () => {
       try {
-        await setAchadoStateInVistoriaAction(
-          vistoriaId,
-          pendencia.id,
-          next,
-        );
+        const vid = await ensureVistoria();
+        await setAchadoStateInVistoriaAction(vid, pendencia.id, next);
         setTipo(next === "none" ? null : next);
         router.refresh();
       } catch (err) {
@@ -93,6 +133,8 @@ function PendenciaRow({
       }
     });
   };
+
+  const disabled = pending || ensuring;
 
   return (
     <li className="rounded-md border bg-card p-3">
@@ -119,7 +161,7 @@ function PendenciaRow({
             type="button"
             size="sm"
             variant="ghost"
-            disabled={pending}
+            disabled={disabled}
             onClick={() =>
               setState(tipo === "persiste" ? "none" : "persiste")
             }
@@ -136,7 +178,7 @@ function PendenciaRow({
             type="button"
             size="sm"
             variant="ghost"
-            disabled={pending}
+            disabled={disabled}
             onClick={() =>
               setState(tipo === "resolvido" ? "none" : "resolvido")
             }

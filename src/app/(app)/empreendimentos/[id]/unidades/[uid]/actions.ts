@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, desc, and } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { achadoEventos, fotos, unidades, vistorias } from "@/db/schema";
@@ -101,4 +101,59 @@ export async function listVistoriasFromUnidade(unidadeId: string) {
     .from(vistorias)
     .where(eq(vistorias.unidadeId, unidadeId))
     .orderBy(asc(vistorias.data));
+}
+
+/**
+ * Garante uma vistoria rascunho na unidade. Se ja existe uma rascunho ativa,
+ * retorna o id dela; se nao, cria com data de hoje + ultimo vistoriador
+ * usado (ou vazio se for a primeira vistoria). Usada pelo botao "Resolver
+ * pendencias" no header da pagina da unidade — permite marcar achados como
+ * resolvidos sem precisar criar rascunho manualmente.
+ */
+export async function ensureRascunhoForUnidadeAction(
+  unidadeId: string,
+): Promise<{ vistoriaId: string }> {
+  await requireMutation();
+
+  const [unidade] = await db
+    .select({ empreendimentoId: unidades.empreendimentoId })
+    .from(unidades)
+    .where(eq(unidades.id, unidadeId))
+    .limit(1);
+  if (!unidade) throw new Error("Unidade não encontrada.");
+
+  // Rascunho ativa mais recente, se houver.
+  const [existing] = await db
+    .select({ id: vistorias.id })
+    .from(vistorias)
+    .where(
+      and(eq(vistorias.unidadeId, unidadeId), eq(vistorias.status, "rascunho")),
+    )
+    .orderBy(desc(vistorias.createdAt))
+    .limit(1);
+
+  if (existing) return { vistoriaId: existing.id };
+
+  // Pega o ultimo vistoriador usado pra pre-preencher.
+  const [latest] = await db
+    .select({ nome: vistorias.vistoriadorNome })
+    .from(vistorias)
+    .where(eq(vistorias.unidadeId, unidadeId))
+    .orderBy(desc(vistorias.data), desc(vistorias.createdAt))
+    .limit(1);
+
+  const [created] = await db
+    .insert(vistorias)
+    .values({
+      unidadeId,
+      data: todayISO(),
+      vistoriadorNome: latest?.nome ?? null,
+      status: "rascunho",
+    })
+    .returning({ id: vistorias.id });
+
+  revalidatePath(
+    `/empreendimentos/${unidade.empreendimentoId}/unidades/${unidadeId}`,
+  );
+  return { vistoriaId: created.id };
 }
