@@ -2,10 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, asc, desc, and } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { achadoEventos, fotos, unidades, vistorias } from "@/db/schema";
+import {
+  achadoEventos,
+  achados,
+  fotos,
+  unidades,
+  vistorias,
+} from "@/db/schema";
 import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
 import { todayISO } from "@/lib/format";
@@ -104,56 +110,90 @@ export async function listVistoriasFromUnidade(unidadeId: string) {
 }
 
 /**
- * Garante uma vistoria rascunho na unidade. Se ja existe uma rascunho ativa,
- * retorna o id dela; se nao, cria com data de hoje + ultimo vistoriador
- * usado (ou vazio se for a primeira vistoria). Usada pelo botao "Resolver
- * pendencias" no header da pagina da unidade — permite marcar achados como
- * resolvidos sem precisar criar rascunho manualmente.
+ * Marca/desmarca um achado como resolvido sem criar nova vistoria. O evento
+ * "resolvido" e gravado na propria vistoria de origem do achado, ao lado do
+ * evento "criado". A data do evento (createdAt) reflete o momento real da
+ * resolucao — independente da data da vistoria, preservando o audit trail.
+ *
+ * Funciona mesmo em vistorias finalizadas (operacao retroativa por design).
  */
-export async function ensureRascunhoForUnidadeAction(
-  unidadeId: string,
-): Promise<{ vistoriaId: string }> {
+export async function resolveAchadoRetroactiveAction(
+  achadoId: string,
+  next: "resolvido" | "none",
+): Promise<void> {
   await requireMutation();
 
-  const [unidade] = await db
-    .select({ empreendimentoId: unidades.empreendimentoId })
-    .from(unidades)
-    .where(eq(unidades.id, unidadeId))
-    .limit(1);
-  if (!unidade) throw new Error("Unidade não encontrada.");
+  let revalidateUrl: string | null = null;
+  let fotosToCleanup: { arquivoPath: string; thumbPath: string }[] = [];
 
-  // Rascunho ativa mais recente, se houver.
-  const [existing] = await db
-    .select({ id: vistorias.id })
-    .from(vistorias)
-    .where(
-      and(eq(vistorias.unidadeId, unidadeId), eq(vistorias.status, "rascunho")),
-    )
-    .orderBy(desc(vistorias.createdAt))
-    .limit(1);
+  await db.transaction(async (tx) => {
+    const [achado] = await tx
+      .select({
+        id: achados.id,
+        unidadeId: achados.unidadeId,
+        vistoriaOrigemId: achados.vistoriaOrigemId,
+      })
+      .from(achados)
+      .where(eq(achados.id, achadoId))
+      .limit(1);
+    if (!achado) throw new Error("Achado não encontrado.");
 
-  if (existing) return { vistoriaId: existing.id };
+    const [unidade] = await tx
+      .select({ empreendimentoId: unidades.empreendimentoId })
+      .from(unidades)
+      .where(eq(unidades.id, achado.unidadeId))
+      .limit(1);
+    if (unidade) {
+      revalidateUrl = `/empreendimentos/${unidade.empreendimentoId}/unidades/${achado.unidadeId}`;
+    }
 
-  // Pega o ultimo vistoriador usado pra pre-preencher.
-  const [latest] = await db
-    .select({ nome: vistorias.vistoriadorNome })
-    .from(vistorias)
-    .where(eq(vistorias.unidadeId, unidadeId))
-    .orderBy(desc(vistorias.data), desc(vistorias.createdAt))
-    .limit(1);
+    // Procura por um evento "resolvido" existente pra este achado nesta
+    // vistoria de origem — evita duplicar.
+    const [existingResolvido] = await tx
+      .select({ id: achadoEventos.id })
+      .from(achadoEventos)
+      .where(
+        and(
+          eq(achadoEventos.achadoId, achadoId),
+          eq(achadoEventos.vistoriaId, achado.vistoriaOrigemId),
+          eq(achadoEventos.tipo, "resolvido"),
+        ),
+      )
+      .limit(1);
 
-  const [created] = await db
-    .insert(vistorias)
-    .values({
-      unidadeId,
-      data: todayISO(),
-      vistoriadorNome: latest?.nome ?? null,
-      status: "rascunho",
-    })
-    .returning({ id: vistorias.id });
+    if (next === "resolvido") {
+      if (!existingResolvido) {
+        await tx.insert(achadoEventos).values({
+          achadoId,
+          vistoriaId: achado.vistoriaOrigemId,
+          tipo: "resolvido",
+        });
+      }
+      await tx
+        .update(achados)
+        .set({
+          status: "resolvido",
+          vistoriaResolvidoId: achado.vistoriaOrigemId,
+        })
+        .where(eq(achados.id, achadoId));
+    } else {
+      // next === "none" — desfaz
+      if (existingResolvido) {
+        fotosToCleanup = await tx
+          .select({ arquivoPath: fotos.arquivoPath, thumbPath: fotos.thumbPath })
+          .from(fotos)
+          .where(eq(fotos.achadoEventoId, existingResolvido.id));
+        await tx
+          .delete(achadoEventos)
+          .where(eq(achadoEventos.id, existingResolvido.id));
+      }
+      await tx
+        .update(achados)
+        .set({ status: "aberto", vistoriaResolvidoId: null })
+        .where(eq(achados.id, achadoId));
+    }
+  });
 
-  revalidatePath(
-    `/empreendimentos/${unidade.empreendimentoId}/unidades/${unidadeId}`,
-  );
-  return { vistoriaId: created.id };
+  await deleteFotosFromStorage(fotosToCleanup);
+  if (revalidateUrl) revalidatePath(revalidateUrl);
 }

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -17,63 +17,30 @@ import { Badge } from "@/components/ui/badge";
 import { CATEGORIA_LABELS, type Categoria } from "@/db/schema";
 import { CATEGORIA_BADGE_CLASS } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
-import { setAchadoStateInVistoriaAction } from "@/app/(app)/empreendimentos/[id]/unidades/[uid]/vistorias/[vid]/actions";
-import { ensureRascunhoForUnidadeAction } from "@/app/(app)/empreendimentos/[id]/unidades/[uid]/actions";
+import { resolveAchadoRetroactiveAction } from "@/app/(app)/empreendimentos/[id]/unidades/[uid]/actions";
 
 export type PendenciaView = {
   id: string;
   categoria: Categoria;
   local: string | null;
   descricao: string;
-  /** Estado ja marcado nesta vistoria rascunho, se houver. */
-  currentTipo: "persiste" | "resolvido" | null;
+  /** Se ja foi marcado como resolvido. Permite undo (clicar de novo). */
+  alreadyResolved?: boolean;
 };
 
 type Props = {
   trigger: React.ReactElement;
   pendencias: PendenciaView[];
-} & (
-  | {
-      /** Modo direto: rascunho ja existe, marcacoes vao direto pra ela. */
-      vistoriaId: string;
-      unidadeId?: never;
-    }
-  | {
-      /** Modo lazy: o dialog cria/encontra a rascunho na primeira marcacao. */
-      unidadeId: string;
-      vistoriaId?: never;
-    }
-);
+};
 
-export function ResolverPendenciasDialog({
-  trigger,
-  pendencias,
-  vistoriaId: initialVistoriaId,
-  unidadeId,
-}: Props) {
+/**
+ * Dialog "Resolver pendencias" — disparado do header da pagina da unidade.
+ * Cada marcacao grava um evento "resolvido" na vistoria de origem do achado,
+ * sem criar vistoria nova. Quando o evento ja existe, o botao fica
+ * marcado em verde e clicar de novo desfaz.
+ */
+export function ResolverPendenciasDialog({ trigger, pendencias }: Props) {
   const [open, setOpen] = useState(false);
-  // Quando entra em modo lazy (unidadeId), so resolve a vistoria na primeira
-  // marcacao — assim abrir e fechar o dialog sem clicar nada NAO cria
-  // rascunho fantasma.
-  const [vistoriaId, setVistoriaId] = useState<string | null>(
-    initialVistoriaId ?? null,
-  );
-  const [ensuring, setEnsuring] = useState(false);
-
-  const ensureVistoria = async (): Promise<string> => {
-    if (vistoriaId) return vistoriaId;
-    if (!unidadeId) throw new Error("Faltou unidadeId em modo lazy.");
-    setEnsuring(true);
-    try {
-      const { vistoriaId: id } = await ensureRascunhoForUnidadeAction(
-        unidadeId,
-      );
-      setVistoriaId(id);
-      return id;
-    } finally {
-      setEnsuring(false);
-    }
-  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -82,25 +49,14 @@ export function ResolverPendenciasDialog({
         <DialogHeader>
           <DialogTitle>Resolver pendências</DialogTitle>
           <DialogDescription>
-            Achados em aberto da unidade. Marque cada um como{" "}
-            <strong>Resolvido</strong> ou que <strong>Persiste</strong>.
-            {!initialVistoriaId && !vistoriaId ? (
-              <>
-                {" "}
-                Uma vistoria rascunho de hoje será criada automaticamente
-                pra registrar as marcações.
-              </>
-            ) : null}
+            Marque os achados que já foram corrigidos. A resolução fica
+            registrada na vistoria onde o achado foi criado, com data e
+            hora atuais — sem criar uma vistoria nova.
           </DialogDescription>
         </DialogHeader>
         <ul className="max-h-[60vh] space-y-2 overflow-y-auto">
           {pendencias.map((p) => (
-            <PendenciaRow
-              key={p.id}
-              ensureVistoria={ensureVistoria}
-              ensuring={ensuring}
-              pendencia={p}
-            />
+            <PendenciaRow key={p.id} pendencia={p} />
           ))}
         </ul>
       </DialogContent>
@@ -108,33 +64,23 @@ export function ResolverPendenciasDialog({
   );
 }
 
-function PendenciaRow({
-  ensureVistoria,
-  ensuring,
-  pendencia,
-}: {
-  ensureVistoria: () => Promise<string>;
-  ensuring: boolean;
-  pendencia: PendenciaView;
-}) {
+function PendenciaRow({ pendencia }: { pendencia: PendenciaView }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [tipo, setTipo] = useState(pendencia.currentTipo);
+  const [resolved, setResolved] = useState(Boolean(pendencia.alreadyResolved));
 
-  const setState = (next: "persiste" | "resolvido" | "none") => {
+  const toggle = () => {
+    const next = resolved ? "none" : "resolvido";
     start(async () => {
       try {
-        const vid = await ensureVistoria();
-        await setAchadoStateInVistoriaAction(vid, pendencia.id, next);
-        setTipo(next === "none" ? null : next);
+        await resolveAchadoRetroactiveAction(pendencia.id, next);
+        setResolved(next === "resolvido");
         router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erro inesperado");
       }
     });
   };
-
-  const disabled = pending || ensuring;
 
   return (
     <li className="rounded-md border bg-card p-3">
@@ -156,42 +102,22 @@ function PendenciaRow({
           </div>
           <p className="text-sm whitespace-pre-line">{pendencia.descricao}</p>
         </div>
-        <div className="flex shrink-0 gap-1">
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={disabled}
-            onClick={() =>
-              setState(tipo === "persiste" ? "none" : "persiste")
-            }
-            aria-pressed={tipo === "persiste"}
-            className={cn(
-              tipo === "persiste" &&
-                "bg-amber-100 text-amber-900 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:hover:bg-amber-900/60",
-            )}
-          >
-            <AlertCircle className="mr-1 size-4" />
-            Persiste
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={disabled}
-            onClick={() =>
-              setState(tipo === "resolvido" ? "none" : "resolvido")
-            }
-            aria-pressed={tipo === "resolvido"}
-            className={cn(
-              tipo === "resolvido" &&
-                "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:hover:bg-emerald-900/60",
-            )}
-          >
-            <CheckCircle2 className="mr-1 size-4" />
-            Resolvido
-          </Button>
-        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={pending}
+          onClick={toggle}
+          aria-pressed={resolved}
+          className={cn(
+            "shrink-0",
+            resolved &&
+              "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:hover:bg-emerald-900/60",
+          )}
+        >
+          <CheckCircle2 className="mr-1 size-4" />
+          {resolved ? "Resolvido" : "Marcar resolvido"}
+        </Button>
       </div>
     </li>
   );
