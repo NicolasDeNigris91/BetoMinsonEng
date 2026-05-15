@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { achadoEventos, fotos } from "@/db/schema";
@@ -93,6 +93,54 @@ export async function updateEventoNotaAction(
     .update(achadoEventos)
     .set({ notaExtra: parsed.data || null })
     .where(eq(achadoEventos.id, eventoId));
+
+  revalidatePath(vistoriaPath(ctx));
+}
+
+/**
+ * Reordena fotos de um mesmo evento. Recebe a lista de ids na ordem
+ * desejada; valida que pertencem ao mesmo evento (defesa contra ids
+ * forjados) e atribui ordem = 1..N. Bloqueado em vistoria finalizada.
+ */
+export async function reorderFotosAction(
+  eventoId: string,
+  fotoIdsInOrder: string[],
+): Promise<void> {
+  await requireMutation();
+
+  if (fotoIdsInOrder.length === 0) return;
+
+  const ctx = await vistoriaContextFromEvento(eventoId);
+  if (ctx.vistoriaStatus === "finalizada") {
+    throw new Error("Vistoria finalizada.");
+  }
+
+  await db.transaction(async (tx) => {
+    const rows = await tx
+      .select({
+        id: fotos.id,
+        achadoEventoId: fotos.achadoEventoId,
+      })
+      .from(fotos)
+      .where(inArray(fotos.id, fotoIdsInOrder));
+
+    const validIds = new Set(
+      rows.filter((r) => r.achadoEventoId === eventoId).map((r) => r.id),
+    );
+
+    for (const id of fotoIdsInOrder) {
+      if (!validIds.has(id)) {
+        throw new Error("Foto nao pertence a este evento.");
+      }
+    }
+
+    for (let i = 0; i < fotoIdsInOrder.length; i++) {
+      await tx
+        .update(fotos)
+        .set({ ordem: i + 1 })
+        .where(eq(fotos.id, fotoIdsInOrder[i]));
+    }
+  });
 
   revalidatePath(vistoriaPath(ctx));
 }

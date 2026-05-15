@@ -94,7 +94,10 @@ export default async function VistoriaPage({
       .orderBy(asc(achados.categoria), asc(achados.createdAt)),
     db.query.achadoEventos.findMany({
       where: eq(achadoEventos.vistoriaId, vid),
-      with: { fotos: true, achado: true },
+      with: {
+        fotos: { orderBy: (f, { asc }) => asc(f.ordem) },
+        achado: true,
+      },
       orderBy: asc(achadoEventos.createdAt),
     }),
     db

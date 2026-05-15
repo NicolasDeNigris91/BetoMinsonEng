@@ -2,14 +2,33 @@
 
 import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, X, Loader2, Upload, PenLine } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical, ImagePlus, X, Loader2, Upload, PenLine } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PhotoEditor } from "@/components/photo-editor";
 import { usePhotoUpload } from "@/lib/use-photo-upload";
 import { isNextRedirectError } from "@/lib/next-errors";
+import { cn } from "@/lib/utils";
 import {
   deleteFotoAction,
+  reorderFotosAction,
   updateLegendaAction,
 } from "@/app/(app)/empreendimentos/[id]/unidades/[uid]/vistorias/[vid]/foto-actions";
 
@@ -66,6 +85,53 @@ export function PhotoUploader({
     remaining: File[];
     processed: File[];
   } | null>(null);
+
+  // Ordem otimista local — espelha a do server por default e muda
+  // imediatamente no drop pra sensacao instantanea. Re-sincroniza durante
+  // render quando fotos do server mudam (upload novo, exclusao) usando o
+  // pattern oficial do React de "store information from previous renders"
+  // sem useEffect.
+  const serverOrderKey = fotos.map((f) => f.id).join("|");
+  const [orderIds, setOrderIds] = useState<string[]>(fotos.map((f) => f.id));
+  const [syncedKey, setSyncedKey] = useState<string>(serverOrderKey);
+  if (syncedKey !== serverOrderKey) {
+    setSyncedKey(serverOrderKey);
+    setOrderIds(fotos.map((f) => f.id));
+  }
+
+  const fotoById = new Map(fotos.map((f) => [f.id, f]));
+  const orderedFotos = orderIds
+    .map((id) => fotoById.get(id))
+    .filter((f): f is FotoView => Boolean(f));
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = orderIds.indexOf(String(active.id));
+    const newIndex = orderIds.indexOf(String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const next = arrayMove(orderIds, oldIndex, newIndex);
+    const previous = orderIds;
+    setOrderIds(next);
+
+    start(async () => {
+      try {
+        await reorderFotosAction(eventoId, next);
+      } catch (err) {
+        if (isNextRedirectError(err)) throw err;
+        setOrderIds(previous);
+        toast.error(
+          err instanceof Error ? err.message : "Falha ao reordenar fotos",
+        );
+      }
+    });
+  };
 
   const handleSuccess = useCallback(() => {
     router.refresh();
@@ -196,22 +262,48 @@ export function PhotoUploader({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {fotos.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-          {fotos.map((f) => (
-            <FotoCard
-              key={f.id}
-              foto={f}
-              shareToken={shareToken}
-              editable={editable}
-              pending={pending}
-              onDelete={() => handleDelete(f.id)}
-              onLegendaBlur={(value, original) =>
-                handleLegendaBlur(f.id, value, original)
-              }
-            />
-          ))}
-        </div>
+      {orderedFotos.length > 0 ? (
+        editable && orderedFotos.length > 1 ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd}
+          >
+            <SortableContext items={orderIds} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {orderedFotos.map((f) => (
+                  <SortableFotoCard
+                    key={f.id}
+                    foto={f}
+                    shareToken={shareToken}
+                    editable={editable}
+                    pending={pending}
+                    onDelete={() => handleDelete(f.id)}
+                    onLegendaBlur={(value, original) =>
+                      handleLegendaBlur(f.id, value, original)
+                    }
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {orderedFotos.map((f) => (
+              <FotoCard
+                key={f.id}
+                foto={f}
+                shareToken={shareToken}
+                editable={editable}
+                pending={pending}
+                onDelete={() => handleDelete(f.id)}
+                onLegendaBlur={(value, original) =>
+                  handleLegendaBlur(f.id, value, original)
+                }
+              />
+            ))}
+          </div>
+        )
       ) : null}
 
       {editable ? (
@@ -296,6 +388,42 @@ export function PhotoUploader({
           onCancel={handleEditorCancel}
         />
       ) : null}
+    </div>
+  );
+}
+
+function SortableFotoCard(props: {
+  foto: FotoView;
+  shareToken?: string;
+  editable: boolean;
+  pending: boolean;
+  onDelete: () => void;
+  onLegendaBlur: (value: string, original: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: props.foto.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn("relative", isDragging && "z-10 opacity-70")}
+    >
+      <FotoCard {...props} />
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        aria-label="Reordenar foto"
+        className="absolute top-1 left-1 inline-flex size-6 cursor-grab items-center justify-center rounded-md bg-background/80 text-muted-foreground backdrop-blur transition hover:bg-background hover:text-foreground active:cursor-grabbing"
+      >
+        <GripVertical className="size-3.5" />
+      </button>
     </div>
   );
 }
