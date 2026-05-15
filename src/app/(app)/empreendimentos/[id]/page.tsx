@@ -16,6 +16,7 @@ import {
 import { EmpreendimentoFormDialog } from "../empreendimento-form";
 import { deleteEmpreendimentoAction } from "../actions";
 import { UnidadeFormDialog } from "./unidade-form";
+import { RelatorioEvolucaoDialog } from "./relatorio-evolucao-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -120,8 +121,9 @@ export default async function EmpreendimentoDetailPage({
             }
           >
             <FileText className="mr-1.5 size-4" />
-            Relatório consolidado
+            Consolidado
           </Button>
+          <RelatorioEvolucaoDialog empreendimentoId={emp.id} />
           <EmpreendimentoFormDialog
             empreendimento={emp}
             trigger={
