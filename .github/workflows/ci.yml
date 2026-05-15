@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint + typecheck + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Placeholders pra build — mesma logica do Dockerfile.
+    # next build avalia modulos de rota; lib/env.ts valida no import.
+    # Esses valores nunca sao usados em runtime (nenhuma query roda em build).
+    env:
+      DATABASE_URL: postgres://ci-placeholder@localhost:5432/ci
+      APP_PASSWORD: ci-placeholder
+      SESSION_SECRET: ci_placeholder_secret_at_least_32_chars_long_xxxx
+      BASE_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: 1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.0.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
