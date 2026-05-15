@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2 } from "lucide-react";
+import { Calendar, CheckCircle2, Paperclip, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -25,8 +25,6 @@ export type PendenciaView = {
   categoria: Categoria;
   local: string | null;
   descricao: string;
-  /** Se ja foi marcado como resolvido. Permite undo (clicar de novo). */
-  alreadyResolved?: boolean;
 };
 
 type Props = {
@@ -34,30 +32,60 @@ type Props = {
   pendencias: PendenciaView[];
 };
 
+/** Formata Date pra value de <input type="datetime-local"> (YYYY-MM-DDTHH:MM). */
+function toDatetimeLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Formata Date pra exibicao "DD/MM/YYYY HH:MM". */
+function formatBR(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 /**
  * Dialog "Resolver pendencias" — disparado do header da pagina da unidade.
- * Cada marcacao grava um evento "resolvido" na vistoria de origem do achado,
- * sem criar vistoria nova. Quando o evento ja existe, o botao fica
- * marcado em verde e clicar de novo desfaz.
+ * Permite, por achado: ajustar a data/hora da resolucao e anexar uma foto
+ * de comprovacao (opcional). Cada marcacao grava um evento "resolvido"
+ * na vistoria de origem do achado, sem criar vistoria nova.
  */
 export function ResolverPendenciasDialog({ trigger, pendencias }: Props) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Defere o refresh pra quando o dialog fechar — caso contrario, cada
+  // marcacao removeria a linha da lista (o achado deixa de ser pendencia)
+  // e o usuario perderia o feedback "Resolvido em [data]" da linha.
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next && hasChanges) {
+      router.refresh();
+      setHasChanges(false);
+    }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={trigger} />
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Resolver pendências</DialogTitle>
           <DialogDescription>
-            Marque os achados que já foram corrigidos. A resolução fica
-            registrada na vistoria onde o achado foi criado, com data e
-            hora atuais — sem criar uma vistoria nova.
+            Marque os achados corrigidos. Você pode ajustar a data da
+            resolução e anexar uma foto de comprovação (opcional). O
+            registro fica na vistoria onde o achado foi criado, sem criar
+            vistoria nova.
           </DialogDescription>
         </DialogHeader>
         <ul className="max-h-[60vh] space-y-2 overflow-y-auto">
           {pendencias.map((p) => (
-            <PendenciaRow key={p.id} pendencia={p} />
+            <PendenciaRow
+              key={p.id}
+              pendencia={p}
+              onChanged={() => setHasChanges(true)}
+            />
           ))}
         </ul>
       </DialogContent>
@@ -65,18 +93,78 @@ export function ResolverPendenciasDialog({ trigger, pendencias }: Props) {
   );
 }
 
-function PendenciaRow({ pendencia }: { pendencia: PendenciaView }) {
-  const router = useRouter();
+function PendenciaRow({
+  pendencia,
+  onChanged,
+}: {
+  pendencia: PendenciaView;
+  onChanged: () => void;
+}) {
   const [pending, start] = useTransition();
-  const [resolved, setResolved] = useState(Boolean(pendencia.alreadyResolved));
+  const [resolved, setResolved] = useState(false);
+  const [resolvedAt, setResolvedAt] = useState<Date | null>(null);
+  const [hasFoto, setHasFoto] = useState(false);
 
-  const toggle = () => {
-    const next = resolved ? "none" : "resolvido";
+  const [dateValue, setDateValue] = useState(() => toDatetimeLocal(new Date()));
+  const [file, setFile] = useState<File | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const onMark = () => {
     start(async () => {
       try {
-        await resolveAchadoRetroactiveAction(pendencia.id, next);
-        setResolved(next === "resolvido");
-        router.refresh();
+        const parsed = new Date(dateValue);
+        if (Number.isNaN(parsed.getTime())) {
+          toast.error("Data inválida");
+          return;
+        }
+        const { eventoId } = await resolveAchadoRetroactiveAction(
+          pendencia.id,
+          "resolvido",
+          parsed.toISOString(),
+        );
+
+        // Upload da foto (se houver) — POST direto pro endpoint existente.
+        if (file && eventoId) {
+          const fd = new FormData();
+          fd.set("achadoEventoId", eventoId);
+          fd.set("file", file);
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            body: fd,
+          });
+          if (!res.ok) {
+            const data = (await res.json().catch(() => ({}))) as {
+              error?: string;
+            };
+            toast.error(
+              data.error ?? "Não foi possível anexar a foto. Tente de novo.",
+            );
+            // Mesmo com falha no upload, o evento ja foi criado — segue
+            // adiante marcando como resolvido sem foto.
+          } else {
+            setHasFoto(true);
+          }
+        }
+
+        setResolved(true);
+        setResolvedAt(parsed);
+        onChanged();
+      } catch (err) {
+        if (isNextRedirectError(err)) throw err;
+        toast.error(err instanceof Error ? err.message : "Erro inesperado");
+      }
+    });
+  };
+
+  const onUndo = () => {
+    start(async () => {
+      try {
+        await resolveAchadoRetroactiveAction(pendencia.id, "none");
+        setResolved(false);
+        setResolvedAt(null);
+        setFile(null);
+        setHasFoto(false);
+        onChanged();
       } catch (err) {
         if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Erro inesperado");
@@ -85,41 +173,120 @@ function PendenciaRow({ pendencia }: { pendencia: PendenciaView }) {
   };
 
   return (
-    <li className="rounded-md border bg-card p-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="outline"
-              className={cn(
-                "font-mono text-xs",
-                CATEGORIA_BADGE_CLASS[pendencia.categoria],
-              )}
-            >
-              {CATEGORIA_LABELS[pendencia.categoria]}
-            </Badge>
-            {pendencia.local ? (
-              <span className="text-sm font-medium">{pendencia.local}</span>
-            ) : null}
-          </div>
-          <p className="text-sm whitespace-pre-line">{pendencia.descricao}</p>
+    <li
+      className={cn(
+        "rounded-md border bg-card p-3 transition-colors",
+        resolved && "border-emerald-300 bg-emerald-50/40 dark:bg-emerald-900/10",
+      )}
+    >
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge
+            variant="outline"
+            className={cn(
+              "font-mono text-xs",
+              CATEGORIA_BADGE_CLASS[pendencia.categoria],
+            )}
+          >
+            {CATEGORIA_LABELS[pendencia.categoria]}
+          </Badge>
+          {pendencia.local ? (
+            <span className="text-sm font-medium">{pendencia.local}</span>
+          ) : null}
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={pending}
-          onClick={toggle}
-          aria-pressed={resolved}
-          className={cn(
-            "shrink-0",
-            resolved &&
-              "bg-emerald-100 text-emerald-900 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:hover:bg-emerald-900/60",
-          )}
-        >
-          <CheckCircle2 className="mr-1 size-4" />
-          {resolved ? "Resolvido" : "Marcar resolvido"}
-        </Button>
+        <p className="text-sm whitespace-pre-line">{pendencia.descricao}</p>
+
+        {resolved && resolvedAt ? (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="inline-flex items-center gap-1.5 rounded-sm bg-emerald-100 px-2 py-1 font-mono text-[10px] tracking-[0.06em] text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200">
+              <CheckCircle2 className="size-3.5" />
+              Resolvido em{" "}
+              <span className="tabular-nums">{formatBR(resolvedAt)}</span>
+            </span>
+            {hasFoto ? (
+              <span className="inline-flex items-center gap-1 rounded-sm border border-border bg-card px-1.5 py-1 font-mono text-[10px] text-muted-foreground">
+                <Paperclip className="size-3" />
+                foto anexada
+              </span>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={pending}
+              onClick={onUndo}
+              className="ml-auto"
+            >
+              <X className="mr-1 size-4" />
+              Desfazer
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <label className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5 text-xs">
+              <Calendar
+                className="size-3.5 text-muted-foreground"
+                aria-hidden
+              />
+              <input
+                type="datetime-local"
+                value={dateValue}
+                onChange={(e) => setDateValue(e.target.value)}
+                disabled={pending}
+                className="bg-transparent font-mono text-[11px] tabular-nums outline-none"
+                aria-label="Data da resolução"
+              />
+            </label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
+              hidden
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            />
+            {file ? (
+              <span className="inline-flex max-w-[180px] items-center gap-1 rounded-md border border-border bg-card px-2 py-1.5 text-xs">
+                <Paperclip className="size-3 text-muted-foreground" />
+                <span className="truncate" title={file.name}>
+                  {file.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFile(null);
+                    if (fileRef.current) fileRef.current.value = "";
+                  }}
+                  disabled={pending}
+                  aria-label="Remover foto"
+                  className="ml-0.5 rounded-sm p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() => fileRef.current?.click()}
+              >
+                <Paperclip className="mr-1 size-4" />
+                Anexar foto
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              disabled={pending}
+              onClick={onMark}
+              className="ml-auto"
+            >
+              <CheckCircle2 className="mr-1 size-4" />
+              {pending ? "Marcando..." : "Marcar resolvido"}
+            </Button>
+          </div>
+        )}
       </div>
     </li>
   );

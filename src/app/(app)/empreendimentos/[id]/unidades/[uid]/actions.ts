@@ -112,19 +112,26 @@ export async function listVistoriasFromUnidade(unidadeId: string) {
 /**
  * Marca/desmarca um achado como resolvido sem criar nova vistoria. O evento
  * "resolvido" e gravado na propria vistoria de origem do achado, ao lado do
- * evento "criado". A data do evento (createdAt) reflete o momento real da
- * resolucao — independente da data da vistoria, preservando o audit trail.
+ * evento "criado".
+ *
+ * - `customCreatedAt` (opcional): permite registrar a resolucao com data/hora
+ *   passada (cenario: "o conserto aconteceu sexta, estou registrando segunda").
+ *   Se omitido, usa o momento atual.
+ * - Retorna `{ eventoId }` quando next="resolvido" pra que o cliente possa
+ *   anexar uma foto de comprovacao ao evento via /api/upload.
  *
  * Funciona mesmo em vistorias finalizadas (operacao retroativa por design).
  */
 export async function resolveAchadoRetroactiveAction(
   achadoId: string,
   next: "resolvido" | "none",
-): Promise<void> {
+  customCreatedAt?: string,
+): Promise<{ eventoId: string | null }> {
   await requireMutation();
 
   let revalidateUrl: string | null = null;
   let fotosToCleanup: { arquivoPath: string; thumbPath: string }[] = [];
+  let returnedEventoId: string | null = null;
 
   await db.transaction(async (tx) => {
     const [achado] = await tx
@@ -162,12 +169,30 @@ export async function resolveAchadoRetroactiveAction(
       .limit(1);
 
     if (next === "resolvido") {
-      if (!existingResolvido) {
-        await tx.insert(achadoEventos).values({
+      if (existingResolvido) {
+        returnedEventoId = existingResolvido.id;
+        // Se o usuario passou uma data customizada, atualiza o evento ja
+        // existente. Sem date custom, deixa o que ja estava.
+        if (customCreatedAt) {
+          await tx
+            .update(achadoEventos)
+            .set({ createdAt: new Date(customCreatedAt) })
+            .where(eq(achadoEventos.id, existingResolvido.id));
+        }
+      } else {
+        const insertValues: typeof achadoEventos.$inferInsert = {
           achadoId,
           vistoriaId: achado.vistoriaOrigemId,
           tipo: "resolvido",
-        });
+        };
+        if (customCreatedAt) {
+          insertValues.createdAt = new Date(customCreatedAt);
+        }
+        const [created] = await tx
+          .insert(achadoEventos)
+          .values(insertValues)
+          .returning({ id: achadoEventos.id });
+        returnedEventoId = created.id;
       }
       await tx
         .update(achados)
@@ -196,4 +221,5 @@ export async function resolveAchadoRetroactiveAction(
 
   await deleteFotosFromStorage(fotosToCleanup);
   if (revalidateUrl) revalidatePath(revalidateUrl);
+  return { eventoId: returnedEventoId };
 }
