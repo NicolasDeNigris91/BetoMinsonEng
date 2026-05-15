@@ -6,13 +6,33 @@ declare global {
 }
 
 async function getBrowser(): Promise<Browser> {
-  if (!globalThis.__pwBrowser) {
-    globalThis.__pwBrowser = await chromium.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+  const current = globalThis.__pwBrowser;
+  if (current && current.isConnected()) return current;
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  });
+  // Se o Chromium morrer (OOM, crash), zera o global pra proxima chamada
+  // relançar em vez de tentar usar um handle morto.
+  browser.on("disconnected", () => {
+    if (globalThis.__pwBrowser === browser) {
+      globalThis.__pwBrowser = null;
+    }
+  });
+  globalThis.__pwBrowser = browser;
+  return browser;
+}
+
+export async function closeBrowser(): Promise<void> {
+  const current = globalThis.__pwBrowser;
+  if (!current) return;
+  globalThis.__pwBrowser = null;
+  try {
+    await current.close();
+  } catch {
+    // browser ja desconectado/morto — nada a fazer
   }
-  return globalThis.__pwBrowser;
 }
 
 export async function renderHtmlToPdf(html: string): Promise<Buffer> {
