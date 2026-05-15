@@ -5,7 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { achadoEventos, fotos } from "@/db/schema";
-import { requireSession } from "@/lib/auth";
+import { requireMutation } from "@/lib/require-mutation";
 import { deleteFile } from "@/lib/storage";
 import {
   vistoriaContext,
@@ -14,7 +14,7 @@ import {
 } from "@/lib/vistoria-context";
 
 export async function deleteFotoAction(fotoId: string): Promise<void> {
-  await requireSession();
+  await requireMutation();
 
   const [foto] = await db
     .select({
@@ -48,7 +48,7 @@ export async function updateLegendaAction(
   fotoId: string,
   legenda: string,
 ): Promise<void> {
-  await requireSession();
+  await requireMutation();
 
   const parsed = legendaSchema.safeParse(legenda);
   if (!parsed.success) throw new Error("Legenda inválida");
@@ -79,7 +79,7 @@ export async function updateEventoNotaAction(
   eventoId: string,
   nota: string,
 ): Promise<void> {
-  await requireSession();
+  await requireMutation();
 
   const parsed = notaSchema.safeParse(nota);
   if (!parsed.success) throw new Error("Nota inválida");
@@ -101,7 +101,7 @@ export async function ensureNotaEventoAction(
   vistoriaId: string,
   achadoId: string,
 ): Promise<{ eventoId: string }> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
   if (ctx.vistoriaStatus === "finalizada") throw new Error("Vistoria finalizada.");
 

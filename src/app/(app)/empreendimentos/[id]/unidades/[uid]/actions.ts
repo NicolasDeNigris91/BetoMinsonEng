@@ -6,7 +6,7 @@ import { eq, asc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { achadoEventos, fotos, unidades, vistorias } from "@/db/schema";
-import { requireSession } from "@/lib/auth";
+import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
 import { todayISO } from "@/lib/format";
 import { vistoriaContext } from "@/lib/vistoria-context";
@@ -26,7 +26,7 @@ export async function createVistoriaAction(
   _prev: NovaVistoriaState,
   formData: FormData,
 ): Promise<NovaVistoriaState> {
-  await requireSession();
+  await requireMutation();
 
   const parsed = novaVistoriaSchema.safeParse({
     data: formData.get("data") || todayISO(),
@@ -69,7 +69,7 @@ export async function createVistoriaAction(
 }
 
 export async function deleteVistoriaAction(vistoriaId: string): Promise<void> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
 
   if (ctx.vistoriaStatus === "finalizada") {

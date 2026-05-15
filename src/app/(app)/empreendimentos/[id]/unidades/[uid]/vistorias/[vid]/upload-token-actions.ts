@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { db } from "@/db";
 import { shareTokens } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
+import { requireMutation } from "@/lib/require-mutation";
 import { vistoriaContext, vistoriaPath } from "@/lib/vistoria-context";
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -13,7 +14,7 @@ const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 export async function createUploadTokenAction(
   vistoriaId: string,
 ): Promise<void> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
   if (ctx.vistoriaStatus === "finalizada") {
     throw new Error("Vistoria finalizada. Reabra antes de gerar um link.");
@@ -45,7 +46,7 @@ export async function createUploadTokenAction(
 export async function revokeUploadTokenAction(
   vistoriaId: string,
 ): Promise<void> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
 
   await db

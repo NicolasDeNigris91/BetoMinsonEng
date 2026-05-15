@@ -6,7 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { achadoEventos, achados, fotos, vistorias, categoriaEnum } from "@/db/schema";
-import { requireSession } from "@/lib/auth";
+import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
 import {
   vistoriaContext,
@@ -36,7 +36,7 @@ export async function setAchadoStateInVistoriaAction(
   achadoId: string,
   state: "none" | "persiste" | "resolvido" | "nota",
 ): Promise<void> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
   assertEditable(ctx);
 
@@ -111,7 +111,7 @@ export async function createAchadoAction(
   _prev: NovoAchadoState,
   formData: FormData,
 ): Promise<NovoAchadoState> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
   assertEditable(ctx);
 
@@ -166,7 +166,7 @@ export async function updateAchadoAction(
   _prev: NovoAchadoState,
   formData: FormData,
 ): Promise<NovoAchadoState> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
   assertEditable(ctx);
 
@@ -202,7 +202,7 @@ export async function deleteAchadoAction(
   achadoId: string,
   vistoriaId: string,
 ): Promise<void> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
   assertEditable(ctx);
 
@@ -237,7 +237,7 @@ export async function deleteAchadoAction(
 export async function finalizeVistoriaAction(
   vistoriaId: string,
 ): Promise<void> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
 
   await db
@@ -257,7 +257,7 @@ export async function finalizeVistoriaAction(
 export async function reopenVistoriaAction(
   vistoriaId: string,
 ): Promise<void> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
 
   await db
@@ -282,7 +282,7 @@ export async function updateObservacoesAction(
   vistoriaId: string,
   formData: FormData,
 ): Promise<void> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
   assertEditable(ctx);
 
@@ -302,7 +302,7 @@ export async function updateObservacoesAction(
 export async function deleteVistoriaFromEditPageAction(
   vistoriaId: string,
 ): Promise<void> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
 
   if (ctx.vistoriaStatus === "finalizada") {

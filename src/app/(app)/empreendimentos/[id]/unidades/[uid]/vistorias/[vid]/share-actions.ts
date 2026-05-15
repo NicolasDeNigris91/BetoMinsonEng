@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { db } from "@/db";
 import { shareTokens } from "@/db/schema";
-import { requireSession } from "@/lib/auth";
+import { requireMutation } from "@/lib/require-mutation";
 import { env } from "@/lib/env";
 import { vistoriaContext, vistoriaPath } from "@/lib/vistoria-context";
 
@@ -14,7 +14,7 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 export async function createShareTokenAction(
   vistoriaId: string,
 ): Promise<{ url: string; expiraEm: string }> {
-  await requireSession();
+  await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
 
   const token = randomBytes(24).toString("hex");
@@ -37,7 +37,7 @@ export async function createShareTokenAction(
 export async function revokeShareTokenAction(
   tokenId: string,
 ): Promise<void> {
-  await requireSession();
+  await requireMutation();
 
   const [row] = await db
     .select({ vistoriaId: shareTokens.vistoriaId })

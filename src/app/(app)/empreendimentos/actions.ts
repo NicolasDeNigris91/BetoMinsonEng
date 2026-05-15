@@ -12,7 +12,7 @@ import {
   unidades,
   vistorias,
 } from "@/db/schema";
-import { requireSession } from "@/lib/auth";
+import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
 
 const empreendimentoSchema = z.object({
@@ -31,7 +31,7 @@ export async function createEmpreendimentoAction(
   _prev: EmpreendimentoFormState,
   formData: FormData,
 ): Promise<EmpreendimentoFormState> {
-  await requireSession();
+  await requireMutation();
 
   const parsed = empreendimentoSchema.safeParse({
     nome: formData.get("nome"),
@@ -68,7 +68,7 @@ export async function updateEmpreendimentoAction(
   _prev: EmpreendimentoFormState,
   formData: FormData,
 ): Promise<EmpreendimentoFormState> {
-  await requireSession();
+  await requireMutation();
 
   const parsed = empreendimentoSchema.safeParse({
     nome: formData.get("nome"),
@@ -102,7 +102,7 @@ export async function updateEmpreendimentoAction(
 }
 
 export async function deleteEmpreendimentoAction(id: string): Promise<void> {
-  await requireSession();
+  await requireMutation();
 
   const fotosToCleanup = await db
     .select({ arquivoPath: fotos.arquivoPath, thumbPath: fotos.thumbPath })

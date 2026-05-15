@@ -6,7 +6,7 @@ import { eq, asc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { achadoEventos, fotos, unidades, vistorias } from "@/db/schema";
-import { requireSession } from "@/lib/auth";
+import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
 
 const unidadeSchema = z.object({
@@ -34,7 +34,7 @@ export async function createUnidadeAction(
   _prev: UnidadeFormState,
   formData: FormData,
 ): Promise<UnidadeFormState> {
-  await requireSession();
+  await requireMutation();
 
   const parsed = unidadeSchema.safeParse({
     nome: formData.get("nome"),
@@ -71,7 +71,7 @@ export async function updateUnidadeAction(
   _prev: UnidadeFormState,
   formData: FormData,
 ): Promise<UnidadeFormState> {
-  await requireSession();
+  await requireMutation();
 
   const parsed = unidadeSchema.safeParse({
     nome: formData.get("nome"),
@@ -106,7 +106,7 @@ export async function updateUnidadeAction(
 }
 
 export async function deleteUnidadeAction(unidadeId: string): Promise<void> {
-  await requireSession();
+  await requireMutation();
 
   const fotosToCleanup = await db
     .select({ arquivoPath: fotos.arquivoPath, thumbPath: fotos.thumbPath })
