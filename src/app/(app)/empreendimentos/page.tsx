@@ -37,7 +37,15 @@ export default async function EmpreendimentosPage({
   const offset = (page - 1) * PAGE_SIZE;
   const hojeISO = new Date().toISOString().slice(0, 10);
 
-  const [[totalRow], lista] = await Promise.all([
+  // Stats globais pra linha executiva no header — independem da pagina
+  // visivel, contam toda a base. 4 queries baratas em paralelo.
+  const [
+    [totalRow],
+    lista,
+    [totalUnidadesRow],
+    [totalAbertosRow],
+    [totalAtrasadosRow],
+  ] = await Promise.all([
     db.select({ n: count() }).from(empreendimentos),
     db
       .select()
@@ -45,9 +53,27 @@ export default async function EmpreendimentosPage({
       .orderBy(desc(empreendimentos.createdAt))
       .limit(PAGE_SIZE)
       .offset(offset),
+    db.select({ n: count() }).from(unidades),
+    db
+      .select({ n: count() })
+      .from(achados)
+      .where(eq(achados.status, "aberto")),
+    db
+      .select({ n: count() })
+      .from(achados)
+      .where(
+        and(
+          eq(achados.status, "aberto"),
+          isNotNull(achados.prazoEm),
+          lt(achados.prazoEm, hojeISO),
+        ),
+      ),
   ]);
 
   const total = Number(totalRow?.n ?? 0);
+  const totalUnidades = Number(totalUnidadesRow?.n ?? 0);
+  const totalAbertos = Number(totalAbertosRow?.n ?? 0);
+  const totalAtrasados = Number(totalAtrasadosRow?.n ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const empIds = lista.map((e) => e.id);
 
@@ -213,14 +239,48 @@ export default async function EmpreendimentosPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
-            Empreendimentos
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Cadastre cada projeto e suas unidades.
-          </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-2">
+          <div>
+            <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
+              Empreendimentos
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Cadastre cada projeto e suas unidades.
+            </p>
+          </div>
+          {total > 0 ? (
+            <div className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] tracking-[0.06em] uppercase text-muted-foreground">
+              <span>
+                <strong className="tabular-nums font-bold text-foreground">
+                  {String(total).padStart(2, "0")}
+                </strong>{" "}
+                {total === 1 ? "empreendimento" : "empreendimentos"}
+              </span>
+              <span>
+                <strong className="tabular-nums font-bold text-foreground">
+                  {String(totalUnidades).padStart(2, "0")}
+                </strong>{" "}
+                {totalUnidades === 1 ? "unidade" : "unidades"}
+              </span>
+              <span>
+                <strong className="tabular-nums font-bold text-foreground">
+                  {String(totalAbertos).padStart(2, "0")}
+                </strong>{" "}
+                em aberto
+              </span>
+              {totalAtrasados > 0 ? (
+                <span>
+                  <strong className="tabular-nums font-bold text-red-700 dark:text-red-300">
+                    {String(totalAtrasados).padStart(2, "0")}
+                  </strong>{" "}
+                  <span className="text-red-700 dark:text-red-300">
+                    atrasados
+                  </span>
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <EmpreendimentoFormDialog
           trigger={

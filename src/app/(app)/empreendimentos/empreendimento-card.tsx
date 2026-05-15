@@ -183,7 +183,13 @@ export function EmpreendimentoCard({ view }: Props) {
               hasAchados={view.nAbertos + view.nResolvidos > 0}
             />
 
-            <ActivityRow ultimaAtividadeISO={view.ultimaAtividadeISO} nUnidades={view.nUnidades} stale={status.kind === "inativo"} />
+            <ActivityRow
+              ultimaAtividadeISO={view.ultimaAtividadeISO}
+              nUnidades={view.nUnidades}
+              stale={status.kind === "inativo"}
+            />
+
+            {status.kind === "inativo" ? <InactiveWarning /> : null}
 
             <Footer view={view} />
           </>
@@ -278,6 +284,18 @@ function ActivityRow({
         {nUnidades === 1 ? "unidade" : "unidades"}
       </span>
     </div>
+  );
+}
+
+function InactiveWarning() {
+  return (
+    <p className="flex items-center gap-2 border-t border-b border-dashed border-amber-400/50 bg-amber-100/40 px-5 py-1.5 text-[11px] text-amber-900 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200">
+      <span aria-hidden>⏰</span>
+      <span>
+        Sem vistorias recentes.{" "}
+        <strong className="font-semibold">Agendar nova?</strong>
+      </span>
+    </p>
   );
 }
 
