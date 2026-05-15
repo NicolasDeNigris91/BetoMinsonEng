@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { and, asc, count, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
 import {
   AlertTriangle,
   ArrowRight,
@@ -10,19 +9,15 @@ import {
 import { StatCard } from "@/components/stat-card";
 import { PrazoBadge } from "@/components/prazo-badge";
 import { Button } from "@/components/ui/button";
-import { db } from "@/db";
-import {
-  achadoEventos,
-  achados,
-  empreendimentos,
-  unidades,
-  vistorias,
-  CATEGORIA_LABELS,
-  type Categoria,
-} from "@/db/schema";
+import { CATEGORIA_LABELS } from "@/db/schema";
 import { CATEGORIA_DOT } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
+import { getDashboardData } from "./dashboard-data";
 
+// force-dynamic intencional: a pagina passa por requireSession (cookie),
+// que ja torna o request dinamico. Os dados pesados sao cacheados em
+// getDashboardData via unstable_cache + revalidateTag — entao "dynamic
+// page, cached data" e o pattern aqui.
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
@@ -30,70 +25,14 @@ export default async function HomePage() {
   seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
   const seteDiasAtrasISO = seteDiasAtras.toISOString().slice(0, 10);
 
-  const [
-    [achadosAbertosTotal],
-    [vistoriasSemana],
-    [empreendimentosCount],
-    [unidadesCount],
+  const {
+    totalAbertos,
+    totalVistoriasSemana,
+    totalEmp,
+    totalUnid,
     proximasPendencias,
     tempoMedioPorCategoria,
-  ] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(achados)
-      .where(eq(achados.status, "aberto")),
-    db
-      .select({ n: count() })
-      .from(vistorias)
-      .where(gte(vistorias.data, seteDiasAtrasISO)),
-    db.select({ n: count() }).from(empreendimentos),
-    db.select({ n: count() }).from(unidades),
-    db
-      .select({
-        id: achados.id,
-        categoria: achados.categoria,
-        local: achados.local,
-        descricao: achados.descricao,
-        prazoEm: achados.prazoEm,
-        empreendimentoId: empreendimentos.id,
-        empreendimentoNome: empreendimentos.nome,
-        unidadeId: unidades.id,
-        unidadeNome: unidades.nome,
-      })
-      .from(achados)
-      .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
-      .innerJoin(
-        empreendimentos,
-        eq(empreendimentos.id, unidades.empreendimentoId),
-      )
-      .where(and(eq(achados.status, "aberto"), isNotNull(achados.prazoEm)))
-      .orderBy(asc(achados.prazoEm))
-      .limit(6),
-    // Tempo medio entre criacao do achado e o evento 'resolvido', por categoria.
-    // Mede em dias com 1 casa decimal. Achados em aberto nao entram.
-    db
-      .select({
-        categoria: achados.categoria,
-        diasAvg: sql<number>`avg(extract(epoch from (${achadoEventos.createdAt} - ${achados.createdAt})) / 86400)`,
-        n: count(),
-      })
-      .from(achados)
-      .innerJoin(
-        achadoEventos,
-        and(
-          eq(achadoEventos.achadoId, achados.id),
-          eq(achadoEventos.tipo, "resolvido"),
-        ),
-      )
-      .where(eq(achados.status, "resolvido"))
-      .groupBy(achados.categoria)
-      .orderBy(desc(sql`count(*)`)),
-  ]);
-
-  const totalAbertos = Number(achadosAbertosTotal?.n ?? 0);
-  const totalVistoriasSemana = Number(vistoriasSemana?.n ?? 0);
-  const totalEmp = Number(empreendimentosCount?.n ?? 0);
-  const totalUnid = Number(unidadesCount?.n ?? 0);
+  } = await getDashboardData(seteDiasAtrasISO);
 
   return (
     <div className="space-y-8">
@@ -199,9 +138,9 @@ export default async function HomePage() {
           ) : (
             <ul className="divide-y divide-dashed divide-border/70 rounded-lg border bg-card">
               {tempoMedioPorCategoria.map((row) => {
-                const cat = row.categoria as Categoria;
-                const dias = Number(row.diasAvg ?? 0);
-                const n = Number(row.n);
+                const cat = row.categoria;
+                const dias = row.diasAvg;
+                const n = row.n;
                 return (
                   <li
                     key={cat}

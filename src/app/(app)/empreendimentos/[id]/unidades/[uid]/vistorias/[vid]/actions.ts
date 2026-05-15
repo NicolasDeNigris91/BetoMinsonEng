@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { achadoEventos, achados, fotos, vistorias, categoriaEnum } from "@/db/schema";
 import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
+import { invalidateAchados, invalidateVistorias } from "@/lib/cache-tags";
 import {
   vistoriaContext,
   vistoriaPath,
@@ -109,6 +110,7 @@ export async function setAchadoStateInVistoriaAction(
 
   await deleteFotosFromStorage(fotosToCleanup);
   revalidatePath(vistoriaPath(ctx));
+  invalidateAchados();
 }
 
 export async function createAchadoAction(
@@ -170,6 +172,7 @@ export async function createAchadoAction(
   });
 
   revalidatePath(vistoriaPath(ctx));
+  invalidateAchados();
   return {};
 }
 
@@ -221,6 +224,7 @@ export async function updateAchadoAction(
     .where(eq(achados.id, achadoId));
 
   revalidatePath(vistoriaPath(ctx));
+  invalidateAchados();
   return {};
 }
 
@@ -258,6 +262,7 @@ export async function deleteAchadoAction(
   await deleteFotosFromStorage(fotosToCleanup);
 
   revalidatePath(vistoriaPath(ctx));
+  invalidateAchados();
 }
 
 /**
@@ -325,6 +330,7 @@ export async function finalizeVistoriaAction(
   revalidatePath(
     `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
   );
+  invalidateVistorias();
 }
 
 export async function reopenVistoriaAction(
@@ -345,6 +351,7 @@ export async function reopenVistoriaAction(
   revalidatePath(
     `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
   );
+  invalidateVistorias();
 }
 
 const observacoesSchema = z.object({
@@ -390,6 +397,8 @@ export async function deleteVistoriaFromEditPageAction(
 
   await db.delete(vistorias).where(eq(vistorias.id, vistoriaId));
   await deleteFotosFromStorage(fotosToCleanup);
+  invalidateVistorias();
+  invalidateAchados();
 
   redirect(
     `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,

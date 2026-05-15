@@ -8,6 +8,11 @@ import { db } from "@/db";
 import { achadoEventos, fotos, unidades, vistorias } from "@/db/schema";
 import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
+import {
+  invalidateAchados,
+  invalidateUnidades,
+  invalidateVistorias,
+} from "@/lib/cache-tags";
 
 const unidadeSchema = z.object({
   nome: z.string().trim().min(1, "Nome é obrigatório").max(100),
@@ -63,6 +68,7 @@ export async function createUnidadeAction(
     .returning({ id: unidades.id });
 
   revalidatePath(`/empreendimentos/${empreendimentoId}`);
+  invalidateUnidades();
   redirect(`/empreendimentos/${empreendimentoId}/unidades/${created.id}`);
 }
 
@@ -101,6 +107,7 @@ export async function updateUnidadeAction(
     revalidatePath(
       `/empreendimentos/${updated.empreendimentoId}/unidades/${unidadeId}`,
     );
+    invalidateUnidades();
   }
   return {};
 }
@@ -124,6 +131,10 @@ export async function deleteUnidadeAction(unidadeId: string): Promise<void> {
 
   if (deleted) {
     revalidatePath(`/empreendimentos/${deleted.empreendimentoId}`);
+    // Cascade — unidade arrasta vistorias e achados juntos.
+    invalidateUnidades();
+    invalidateVistorias();
+    invalidateAchados();
     redirect(`/empreendimentos/${deleted.empreendimentoId}`);
   } else {
     redirect("/empreendimentos");

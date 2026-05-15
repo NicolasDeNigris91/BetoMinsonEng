@@ -16,6 +16,7 @@ import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
 import { todayISO } from "@/lib/format";
 import { vistoriaContext } from "@/lib/vistoria-context";
+import { invalidateAchados, invalidateVistorias } from "@/lib/cache-tags";
 
 const novaVistoriaSchema = z.object({
   data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida"),
@@ -69,6 +70,7 @@ export async function createVistoriaAction(
     .returning({ id: vistorias.id });
 
   revalidatePath(`/empreendimentos/${unidade.empreendimentoId}/unidades/${unidadeId}`);
+  invalidateVistorias();
   redirect(
     `/empreendimentos/${unidade.empreendimentoId}/unidades/${unidadeId}/vistorias/${created.id}`,
   );
@@ -96,6 +98,8 @@ export async function deleteVistoriaAction(vistoriaId: string): Promise<void> {
   revalidatePath(
     `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
   );
+  invalidateVistorias();
+  invalidateAchados();
   redirect(
     `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
   );
@@ -221,5 +225,6 @@ export async function resolveAchadoRetroactiveAction(
 
   await deleteFotosFromStorage(fotosToCleanup);
   if (revalidateUrl) revalidatePath(revalidateUrl);
+  invalidateAchados();
   return { eventoId: returnedEventoId };
 }

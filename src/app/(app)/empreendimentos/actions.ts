@@ -14,6 +14,12 @@ import {
 } from "@/db/schema";
 import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
+import {
+  invalidateAchados,
+  invalidateEmpreendimentos,
+  invalidateUnidades,
+  invalidateVistorias,
+} from "@/lib/cache-tags";
 
 const empreendimentoSchema = z.object({
   nome: z.string().trim().min(1, "Nome é obrigatório").max(200),
@@ -60,6 +66,7 @@ export async function createEmpreendimentoAction(
     .returning({ id: empreendimentos.id });
 
   revalidatePath("/empreendimentos");
+  invalidateEmpreendimentos();
   redirect(`/empreendimentos/${created.id}`);
 }
 
@@ -98,6 +105,7 @@ export async function updateEmpreendimentoAction(
 
   revalidatePath("/empreendimentos");
   revalidatePath(`/empreendimentos/${id}`);
+  invalidateEmpreendimentos();
   return {};
 }
 
@@ -116,5 +124,10 @@ export async function deleteEmpreendimentoAction(id: string): Promise<void> {
   await deleteFotosFromStorage(fotosToCleanup);
 
   revalidatePath("/empreendimentos");
+  // Cascade delete remove tudo abaixo — invalida todas as colecoes.
+  invalidateEmpreendimentos();
+  invalidateUnidades();
+  invalidateVistorias();
+  invalidateAchados();
   redirect("/empreendimentos");
 }
