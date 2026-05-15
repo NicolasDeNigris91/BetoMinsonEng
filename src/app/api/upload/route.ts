@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { db } from "@/db";
 import { achadoEventos, fotos, shareTokens, vistorias } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
+import { detectImageKind } from "@/lib/image-mime";
 import { processImage } from "@/lib/images";
 import { rateLimit } from "@/lib/rate-limit";
 import { saveFile } from "@/lib/storage";
@@ -104,6 +105,19 @@ export async function POST(req: Request) {
     );
   }
 
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  // Validacao real de tipo: file.type vem do cliente e e trivial spoofar.
+  // Magic bytes (primeiros bytes) sao a unica forma confiavel — qualquer
+  // coisa que nao seja JPEG/PNG/WEBP/HEIC e rejeitada antes do Sharp.
+  const kind = detectImageKind(buffer);
+  if (kind === "unknown") {
+    return NextResponse.json(
+      { error: "Arquivo nao e uma imagem valida (JPEG, PNG, WEBP ou HEIC)" },
+      { status: 415 },
+    );
+  }
+
   const [evento] = await db
     .select({
       id: achadoEventos.id,
@@ -137,7 +151,6 @@ export async function POST(req: Request) {
     }
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
   let processed;
   try {
     processed = await processImage(buffer);
