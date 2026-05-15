@@ -137,11 +137,24 @@ export default async function VistoriaPage({
   );
 
   // Pra cada achado originado aqui, junta TODOS os eventos da vistoria —
-  // permite mostrar "achado criado" e "resolvido" como cards separados em
-  // ordem cronologica quando o achado foi resolvido retroativamente.
-  const novosAchadoIds = new Set(novosAchados.map((a) => a.id));
-  const eventosDosNovosAchados = eventosNestaVistoria.filter(
-    (ev) => ev.achado != null && novosAchadoIds.has(ev.achadoId),
+  // permite mostrar "achado criado" e "resolvido" como cards separados.
+  // Ordem: por achado (ordem do novosAchados), e dentro de cada achado o
+  // criado vem sempre antes de resolvido — independente de timestamps,
+  // porque resolvido sem criado nao faz sentido semantico.
+  const TIPO_ORDER: Record<typeof eventosNestaVistoria[number]["tipo"], number> = {
+    criado: 0,
+    persiste: 1,
+    nota: 2,
+    resolvido: 3,
+  };
+  const eventosDosNovosAchados = novosAchados.flatMap((a) =>
+    eventosNestaVistoria
+      .filter((ev) => ev.achado != null && ev.achadoId === a.id)
+      .sort((x, y) => {
+        const byTipo = TIPO_ORDER[x.tipo] - TIPO_ORDER[y.tipo];
+        if (byTipo !== 0) return byTipo;
+        return x.createdAt.getTime() - y.createdAt.getTime();
+      }),
   );
 
   const activeShareTokens = allActiveTokens.filter((t) => !t.permiteUpload);
