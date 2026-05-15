@@ -249,6 +249,7 @@ export default async function VistoriaPage({
                       categoria: a.categoria,
                       local: a.local,
                       descricao: a.descricao,
+                      prazoEm: a.prazoEm,
                     }}
                     evento={
                       ev

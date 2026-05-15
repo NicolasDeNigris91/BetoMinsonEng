@@ -219,6 +219,7 @@ export default async function UnidadeDetailPage({
         categoria: achados.categoria,
         local: achados.local,
         descricao: achados.descricao,
+        prazoEm: achados.prazoEm,
         vistoriaOrigemId: achados.vistoriaOrigemId,
       })
       .from(achados)
@@ -267,6 +268,7 @@ export default async function UnidadeDetailPage({
     categoria: a.categoria,
     local: a.local,
     descricao: a.descricao,
+    prazoEm: a.prazoEm,
   }));
 
   return (

@@ -107,6 +107,7 @@ export const achados = pgTable(
       () => vistorias.id,
       { onDelete: "set null" },
     ),
+    prazoEm: date("prazo_em"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -115,6 +116,7 @@ export const achados = pgTable(
     index("achados_unidade_idx").on(t.unidadeId),
     index("achados_unidade_status_idx").on(t.unidadeId, t.status),
     index("achados_vistoria_origem_idx").on(t.vistoriaOrigemId),
+    index("achados_prazo_idx").on(t.prazoEm),
   ],
 );
 

@@ -67,6 +67,7 @@ export function AchadoFormDialog({
   );
   const [local, setLocal] = useState<string>(achado?.local ?? "");
   const [descricao, setDescricao] = useState<string>(achado?.descricao ?? "");
+  const [prazoEm, setPrazoEm] = useState<string>(achado?.prazoEm ?? "");
   const [showAllTemplates, setShowAllTemplates] = useState(false);
 
   const action = isEdit
@@ -83,6 +84,7 @@ export function AchadoFormDialog({
           setCategoria("ELE");
           setLocal("");
           setDescricao("");
+          setPrazoEm("");
         }
       }
       return result;
@@ -255,6 +257,26 @@ export function AchadoFormDialog({
             {state.fieldErrors?.descricao ? (
               <p className="text-sm text-destructive">
                 {state.fieldErrors.descricao}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="prazoEm">Resolver até (opcional)</Label>
+            <Input
+              id="prazoEm"
+              name="prazoEm"
+              type="date"
+              value={prazoEm}
+              onChange={(e) => setPrazoEm(e.target.value)}
+              disabled={pending}
+            />
+            <p className="text-xs text-muted-foreground">
+              Achado fica marcado como atrasado depois desta data.
+            </p>
+            {state.fieldErrors?.prazoEm ? (
+              <p className="text-sm text-destructive">
+                {state.fieldErrors.prazoEm}
               </p>
             ) : null}
           </div>

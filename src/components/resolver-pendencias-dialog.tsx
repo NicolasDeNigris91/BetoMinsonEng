@@ -19,12 +19,14 @@ import { CATEGORIA_BADGE_CLASS } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
 import { isNextRedirectError } from "@/lib/next-errors";
 import { resolveAchadoRetroactiveAction } from "@/app/(app)/empreendimentos/[id]/unidades/[uid]/actions";
+import { PrazoBadge } from "@/components/prazo-badge";
 
 export type PendenciaView = {
   id: string;
   categoria: Categoria;
   local: string | null;
   descricao: string;
+  prazoEm: string | null;
 };
 
 type Props = {
@@ -193,6 +195,7 @@ function PendenciaRow({
           {pendencia.local ? (
             <span className="text-sm font-medium">{pendencia.local}</span>
           ) : null}
+          <PrazoBadge prazoEm={pendencia.prazoEm} resolvido={resolved} />
         </div>
         <p className="text-sm whitespace-pre-line">{pendencia.descricao}</p>
 

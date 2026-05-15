@@ -18,6 +18,11 @@ const novoAchadoSchema = z.object({
   categoria: z.enum(categoriaEnum.enumValues),
   local: z.string().trim().max(300).optional().or(z.literal("")),
   descricao: z.string().trim().min(1, "Descrição é obrigatória"),
+  prazoEm: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida")
+    .optional()
+    .or(z.literal("")),
 });
 
 export type NovoAchadoState = {
@@ -119,6 +124,7 @@ export async function createAchadoAction(
     categoria: formData.get("categoria"),
     local: formData.get("local"),
     descricao: formData.get("descricao"),
+    prazoEm: formData.get("prazoEm"),
   });
 
   if (!parsed.success) {
@@ -138,6 +144,7 @@ export async function createAchadoAction(
         categoria: parsed.data.categoria,
         local: parsed.data.local || null,
         descricao: parsed.data.descricao,
+        prazoEm: parsed.data.prazoEm || null,
         status: "aberto",
         vistoriaOrigemId: vistoriaId,
       })
@@ -158,6 +165,11 @@ const updateAchadoSchema = z.object({
   categoria: z.enum(categoriaEnum.enumValues),
   local: z.string().trim().max(300).optional().or(z.literal("")),
   descricao: z.string().trim().min(1, "Descrição é obrigatória"),
+  prazoEm: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida")
+    .optional()
+    .or(z.literal("")),
 });
 
 export async function updateAchadoAction(
@@ -174,6 +186,7 @@ export async function updateAchadoAction(
     categoria: formData.get("categoria"),
     local: formData.get("local"),
     descricao: formData.get("descricao"),
+    prazoEm: formData.get("prazoEm"),
   });
 
   if (!parsed.success) {
@@ -191,6 +204,7 @@ export async function updateAchadoAction(
       categoria: parsed.data.categoria,
       local: parsed.data.local || null,
       descricao: parsed.data.descricao,
+      prazoEm: parsed.data.prazoEm || null,
     })
     .where(eq(achados.id, achadoId));
 

@@ -9,6 +9,7 @@ import { setAchadoStateInVistoriaAction } from "./actions";
 import { ensureNotaEventoAction } from "./foto-actions";
 import { EventoEditor } from "./evento-editor";
 import type { FotoView } from "@/components/photo-uploader";
+import { PrazoBadge } from "@/components/prazo-badge";
 import { toast } from "sonner";
 import {
   CATEGORIA_BADGE_CLASS,
@@ -32,6 +33,7 @@ type Props = {
     categoria: Categoria;
     local: string | null;
     descricao: string;
+    prazoEm: string | null;
   };
   evento: ChecklistEvento | null;
 };
@@ -94,6 +96,7 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
                 {eventoBadge.label}
               </Badge>
             ) : null}
+            <PrazoBadge prazoEm={achado.prazoEm} resolvido={isResolvido} />
           </div>
           <p className="text-sm whitespace-pre-line">{achado.descricao}</p>
         </div>
