@@ -188,6 +188,34 @@ export const rateLimitBuckets = pgTable(
   (t) => [index("rate_limit_buckets_reset_idx").on(t.resetAt)],
 );
 
+// Preparacao para migrar do APP_PASSWORD compartilhado pra usuarios
+// por pessoa. Tabela existe; auth ainda nao foi cabeada nela.
+//
+// Quando ativar:
+// 1. Adicionar bcrypt/argon2 como dep
+// 2. Trocar passwordMatches() em lib/auth.ts pra buscar por email + hash
+// 3. Adicionar coluna criado_por_usuario_id em vistorias/achados/fotos
+//    pra audit trail real (migration separada)
+// 4. Criar usuario 'sistema' e backfill dados antigos
+export const usuarios = pgTable(
+  "usuarios",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    nome: varchar("nome", { length: 200 }).notNull(),
+    email: varchar("email", { length: 200 }).notNull().unique(),
+    senhaHash: varchar("senha_hash", { length: 255 }).notNull(),
+    desativadoEm: timestamp("desativado_em", { withTimezone: true }),
+    ultimoAcessoEm: timestamp("ultimo_acesso_em", { withTimezone: true }),
+    criadoEm: timestamp("criado_em", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    atualizadoEm: timestamp("atualizado_em", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("usuarios_email_idx").on(t.email)],
+);
+
 export const empreendimentosRelations = relations(empreendimentos, ({ many }) => ({
   unidades: many(unidades),
 }));
