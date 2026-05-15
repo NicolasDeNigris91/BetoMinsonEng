@@ -53,7 +53,19 @@ export function AchadosSortableList({
 }: Props) {
   // Estado local da ordem; inicializa com a do server. Otimismo: muda na
   // hora do drop, server reconcilia no proximo refresh.
+  //
+  // Re-sincroniza durante render quando achadoIds do server muda (ex: novo
+  // achado criado ou apagado). Sem isso, o estado local fica preso na lista
+  // do mount inicial e novos achados ficam "invisiveis" mesmo o contador
+  // dizendo que tem mais. Pattern oficial do React de "store information
+  // from previous renders" sem useEffect.
+  const idsKey = achadoIds.join("|");
   const [order, setOrder] = useState<string[]>(achadoIds);
+  const [syncedKey, setSyncedKey] = useState<string>(idsKey);
+  if (syncedKey !== idsKey) {
+    setSyncedKey(idsKey);
+    setOrder(achadoIds);
+  }
   const [pending, start] = useTransition();
 
   const sensors = useSensors(
