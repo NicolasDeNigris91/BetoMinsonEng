@@ -93,7 +93,8 @@ export default async function VistoriaPage({
       .orderBy(asc(achados.categoria), asc(achados.createdAt)),
     db.query.achadoEventos.findMany({
       where: eq(achadoEventos.vistoriaId, vid),
-      with: { fotos: true },
+      with: { fotos: true, achado: true },
+      orderBy: asc(achadoEventos.createdAt),
     }),
     db
       .select()
@@ -133,6 +134,14 @@ export default async function VistoriaPage({
 
   const eventByAchadoId = new Map(
     eventosNestaVistoria.map((e) => [e.achadoId, e]),
+  );
+
+  // Pra cada achado originado aqui, junta TODOS os eventos da vistoria —
+  // permite mostrar "achado criado" e "resolvido" como cards separados em
+  // ordem cronologica quando o achado foi resolvido retroativamente.
+  const novosAchadoIds = new Set(novosAchados.map((a) => a.id));
+  const eventosDosNovosAchados = eventosNestaVistoria.filter(
+    (ev) => ev.achado != null && novosAchadoIds.has(ev.achadoId),
   );
 
   const activeShareTokens = allActiveTokens.filter((t) => !t.permiteUpload);
@@ -282,28 +291,29 @@ export default async function VistoriaPage({
           </p>
         ) : (
           <div className="space-y-2">
-            {novosAchados.map((a) => {
-              const ev = eventByAchadoId.get(a.id);
-              if (!ev) return null;
-              return (
-                <NovoAchadoCard
-                  key={a.id}
-                  vistoriaId={vistoria.id}
-                  achado={a}
-                  editable={isDraft}
-                  evento={{
-                    id: ev.id,
-                    notaExtra: ev.notaExtra,
-                    fotos: ev.fotos.map((f) => ({
-                      id: f.id,
-                      arquivoPath: f.arquivoPath,
-                      thumbPath: f.thumbPath,
-                      legenda: f.legenda,
-                    })),
-                  }}
-                />
-              );
-            })}
+            {eventosDosNovosAchados.map((ev) => (
+              <NovoAchadoCard
+                key={ev.id}
+                vistoriaId={vistoria.id}
+                achado={ev.achado!}
+                // So o evento "criado" e editavel — eventos "resolvido"
+                // retroativos sao registros historicos read-only.
+                editable={isDraft && ev.tipo === "criado"}
+                autor={vistoria.vistoriadorNome}
+                evento={{
+                  id: ev.id,
+                  tipo: ev.tipo,
+                  createdAt: ev.createdAt,
+                  notaExtra: ev.notaExtra,
+                  fotos: ev.fotos.map((f) => ({
+                    id: f.id,
+                    arquivoPath: f.arquivoPath,
+                    thumbPath: f.thumbPath,
+                    legenda: f.legenda,
+                  })),
+                }}
+              />
+            ))}
           </div>
         )}
       </section>

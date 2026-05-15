@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   CATEGORIA_LABELS,
   type Achado,
+  type EventoTipo,
 } from "@/db/schema";
 import { AchadoFormDialog } from "./novo-achado-dialog";
 import { deleteAchadoAction } from "./actions";
@@ -16,8 +17,11 @@ import type { FotoView } from "@/components/photo-uploader";
 import { toast } from "sonner";
 import {
   CATEGORIA_BADGE_CLASS,
+  CATEGORIA_DOT,
   CATEGORIA_STRIPE_BORDER,
+  EVENTO_BADGE,
 } from "@/lib/category-styles";
+import { formatDateTimeBR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { isNextRedirectError } from "@/lib/next-errors";
 
@@ -26,12 +30,30 @@ function fileUrl(path: string, token?: string): string {
   return token ? `${base}?token=${encodeURIComponent(token)}` : base;
 }
 
+const TIPO_LABEL: Record<EventoTipo, string> = {
+  criado: "achado criado",
+  resolvido: "resolvido",
+  persiste: "persiste",
+  nota: "anotação",
+};
+
+const TIPO_COLOR: Record<EventoTipo, string> = {
+  criado: "text-amber-700 dark:text-amber-300",
+  resolvido: "text-emerald-700 dark:text-emerald-300",
+  persiste: "text-amber-700 dark:text-amber-300",
+  nota: "text-muted-foreground",
+};
+
 type Props = {
   vistoriaId: string;
   achado: Achado;
   editable: boolean;
+  /** Vistoriador da vistoria — exibido como autor na linha de audit. */
+  autor: string | null;
   evento: {
     id: string;
+    tipo: EventoTipo;
+    createdAt: Date;
     notaExtra: string | null;
     fotos: FotoView[];
   };
@@ -42,6 +64,7 @@ export function NovoAchadoCard({
   vistoriaId,
   achado,
   editable,
+  autor,
   evento,
   shareToken,
 }: Props) {
@@ -65,6 +88,10 @@ export function NovoAchadoCard({
     });
   };
 
+  // Badge do evento (RESOLVIDO/PERSISTE/ANOTAÇÃO). "criado" nao recebe
+  // badge — eh o estado default.
+  const eventoBadge = EVENTO_BADGE[evento.tipo];
+
   const header = (
     <div className="flex flex-wrap items-center gap-2">
       <Badge
@@ -76,15 +103,40 @@ export function NovoAchadoCard({
       {achado.local ? (
         <span className="text-sm font-medium">{achado.local}</span>
       ) : null}
-      {achado.status === "resolvido" ? (
-        <Badge
-          variant="outline"
-          className="border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
-        >
-          Resolvido
+      {eventoBadge ? (
+        <Badge variant="outline" className={eventoBadge.className}>
+          {eventoBadge.label}
         </Badge>
       ) : null}
     </div>
+  );
+
+  const auditLine = (
+    <p className="flex flex-wrap items-center gap-x-2 font-mono text-[11px]">
+      <span
+        aria-hidden
+        className={cn(
+          "inline-block size-1.5 rounded-full",
+          CATEGORIA_DOT[achado.categoria],
+        )}
+      />
+      <span className="text-foreground/80">
+        {CATEGORIA_LABELS[achado.categoria].toLowerCase()}
+      </span>
+      <span className={cn("font-semibold", TIPO_COLOR[evento.tipo])}>
+        {TIPO_LABEL[evento.tipo]}
+      </span>
+      <span className="text-muted-foreground/60">·</span>
+      <span className="tabular-nums text-muted-foreground">
+        {formatDateTimeBR(evento.createdAt)}
+      </span>
+      {autor ? (
+        <>
+          <span className="text-muted-foreground/60">·</span>
+          <span className="text-muted-foreground">{autor}</span>
+        </>
+      ) : null}
+    </p>
   );
 
   // Modo leitura: media-object com fotos a esquerda e texto a direita,
@@ -142,6 +194,7 @@ export function NovoAchadoCard({
                 {evento.notaExtra}
               </p>
             ) : null}
+            {auditLine}
           </div>
         </div>
       </div>
