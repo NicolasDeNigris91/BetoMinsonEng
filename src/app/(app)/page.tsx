@@ -12,6 +12,7 @@ import { CATEGORIA_LABELS } from "@/db/schema";
 import { CATEGORIA_DOT } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
 import { getDashboardData } from "./dashboard-data";
+import { DashboardAtividade } from "./dashboard-activity";
 
 // force-dynamic intencional: a pagina passa por requireSession (cookie),
 // que ja torna o request dinamico. Os dados pesados sao cacheados em
@@ -34,6 +35,7 @@ export default async function HomePage() {
     deltaAbertos,
     deltaVistorias,
     proximasPendencias,
+    atividade,
   } = await getDashboardData(seteDiasAtrasISO);
 
   return (
@@ -166,10 +168,13 @@ export default async function HomePage() {
             <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
               Atividade recente
             </h2>
+            {atividade.length > 0 ? (
+              <span className="font-mono text-[10px] tracking-[0.06em] uppercase text-muted-foreground">
+                últimos {atividade.length}
+              </span>
+            ) : null}
           </div>
-          <div className="rounded-lg border bg-muted/30 p-6 text-sm text-center text-muted-foreground">
-            Feed de atividade em breve.
-          </div>
+          <DashboardAtividade items={atividade} />
         </section>
       </div>
 
