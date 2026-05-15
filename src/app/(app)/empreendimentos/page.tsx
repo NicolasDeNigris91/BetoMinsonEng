@@ -1,26 +1,30 @@
-import Link from "next/link";
-import { and, desc, eq, count, sql, inArray } from "drizzle-orm";
+import { and, desc, eq, count, isNotNull, lt, sql, inArray } from "drizzle-orm";
 import { Plus, Building2 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Pagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import {
+  achadoEventos,
   achados,
   empreendimentos,
   unidades,
   vistorias,
+  type Categoria,
 } from "@/db/schema";
-import { formatDateBR } from "@/lib/format";
-import {
-  ACTIVITY_STRIPE,
-  activityStatus,
-} from "@/lib/category-styles";
 import { EmpreendimentoFormDialog } from "./empreendimento-form";
+import {
+  EmpreendimentoCard,
+  type EmpreendimentoCardView,
+} from "./empreendimento-card";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 12;
+
+function emptyChips(): Record<Categoria, number> {
+  return { ELE: 0, HID: 0, HVAC: 0, PISCINA: 0, ASP: 0, SIS: 0 };
+}
 
 export default async function EmpreendimentosPage({
   searchParams,
@@ -31,10 +35,8 @@ export default async function EmpreendimentosPage({
   const pageParam = Number(sp.page ?? "1");
   const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
   const offset = (page - 1) * PAGE_SIZE;
+  const hojeISO = new Date().toISOString().slice(0, 10);
 
-  // 1) Conta total + 2) busca a pagina atual em paralelo. As queries de
-  // agregacao (unidades/abertos/ultimas) so rodam sobre os ids retornados
-  // pra evitar contar agregados de empreendimentos fora da pagina visivel.
   const [[totalRow], lista] = await Promise.all([
     db.select({ n: count() }).from(empreendimentos),
     db
@@ -49,9 +51,19 @@ export default async function EmpreendimentosPage({
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const empIds = lista.map((e) => e.id);
 
-  const [unidadesRows, abertosRows, ultimasRows] =
+  // Agregados pra cada empreendimento da pagina visivel. Tudo em paralelo
+  // pra reduzir round-trips no DB.
+  const [
+    unidadesRows,
+    abertosRows,
+    resolvidosRows,
+    atrasadosRows,
+    chipsRows,
+    ultimaVistoriaRows,
+    ultimoEventoRows,
+  ] =
     empIds.length === 0
-      ? [[], [], []]
+      ? [[], [], [], [], [], [], []]
       : await Promise.all([
           db
             .select({
@@ -78,21 +90,126 @@ export default async function EmpreendimentosPage({
           db
             .select({
               empreendimentoId: unidades.empreendimentoId,
-              data: sql<string>`max(${vistorias.data})`,
+              n: count(),
+            })
+            .from(achados)
+            .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+            .where(
+              and(
+                eq(achados.status, "resolvido"),
+                inArray(unidades.empreendimentoId, empIds),
+              ),
+            )
+            .groupBy(unidades.empreendimentoId),
+          db
+            .select({
+              empreendimentoId: unidades.empreendimentoId,
+              n: count(),
+            })
+            .from(achados)
+            .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+            .where(
+              and(
+                eq(achados.status, "aberto"),
+                isNotNull(achados.prazoEm),
+                lt(achados.prazoEm, hojeISO),
+                inArray(unidades.empreendimentoId, empIds),
+              ),
+            )
+            .groupBy(unidades.empreendimentoId),
+          // Distribuicao de abertos por (empreendimento, categoria).
+          // Alimenta os chips coloridos no card.
+          db
+            .select({
+              empreendimentoId: unidades.empreendimentoId,
+              categoria: achados.categoria,
+              n: count(),
+            })
+            .from(achados)
+            .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+            .where(
+              and(
+                eq(achados.status, "aberto"),
+                inArray(unidades.empreendimentoId, empIds),
+              ),
+            )
+            .groupBy(unidades.empreendimentoId, achados.categoria),
+          db
+            .select({
+              empreendimentoId: unidades.empreendimentoId,
+              ts: sql<string>`max(${vistorias.createdAt})`,
             })
             .from(vistorias)
             .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
             .where(inArray(unidades.empreendimentoId, empIds))
             .groupBy(unidades.empreendimentoId),
+          // max(achado_eventos.created_at) por empreendimento — pra capturar
+          // atividade que aconteceu DEPOIS da vistoria (ex: marcacao retroativa
+          // de resolvido). Junto com ultimaVistoria, da o snapshot mais
+          // fidedigno do "ativo ha quanto tempo".
+          db
+            .select({
+              empreendimentoId: unidades.empreendimentoId,
+              ts: sql<string>`max(${achadoEventos.createdAt})`,
+            })
+            .from(achadoEventos)
+            .innerJoin(achados, eq(achados.id, achadoEventos.achadoId))
+            .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+            .where(inArray(unidades.empreendimentoId, empIds))
+            .groupBy(unidades.empreendimentoId),
         ]);
 
+  // Indexa todos os agregados por empreendimentoId pra lookup O(1) na
+  // construcao do view model.
   const unidadesPor = new Map(
     unidadesRows.map((r) => [r.empreendimentoId, Number(r.n)]),
   );
   const abertosPor = new Map(
     abertosRows.map((r) => [r.empreendimentoId, Number(r.n)]),
   );
-  const ultimaPor = new Map(ultimasRows.map((r) => [r.empreendimentoId, r.data]));
+  const resolvidosPor = new Map(
+    resolvidosRows.map((r) => [r.empreendimentoId, Number(r.n)]),
+  );
+  const atrasadosPor = new Map(
+    atrasadosRows.map((r) => [r.empreendimentoId, Number(r.n)]),
+  );
+  const ultimaVistoriaPor = new Map(
+    ultimaVistoriaRows.map((r) => [r.empreendimentoId, r.ts]),
+  );
+  const ultimoEventoPor = new Map(
+    ultimoEventoRows.map((r) => [r.empreendimentoId, r.ts]),
+  );
+
+  // (empreendimentoId, categoria) -> count.
+  const chipsPor = new Map<string, Record<Categoria, number>>();
+  for (const row of chipsRows) {
+    const existing = chipsPor.get(row.empreendimentoId) ?? emptyChips();
+    existing[row.categoria] = Number(row.n);
+    chipsPor.set(row.empreendimentoId, existing);
+  }
+
+  // Pega a atividade mais recente entre vistoria criada e ultimo evento.
+  function maxIso(a: string | null | undefined, b: string | null | undefined): string | null {
+    if (!a) return b ?? null;
+    if (!b) return a;
+    return a > b ? a : b;
+  }
+
+  const views: EmpreendimentoCardView[] = lista.map((emp) => ({
+    id: emp.id,
+    nome: emp.nome,
+    cliente: emp.cliente,
+    endereco: emp.endereco,
+    nUnidades: unidadesPor.get(emp.id) ?? 0,
+    nAbertos: abertosPor.get(emp.id) ?? 0,
+    nResolvidos: resolvidosPor.get(emp.id) ?? 0,
+    nAtrasados: atrasadosPor.get(emp.id) ?? 0,
+    abertosPorCategoria: chipsPor.get(emp.id) ?? emptyChips(),
+    ultimaAtividadeISO: maxIso(
+      ultimaVistoriaPor.get(emp.id),
+      ultimoEventoPor.get(emp.id),
+    ),
+  }));
 
   return (
     <div className="space-y-6">
@@ -133,75 +250,19 @@ export default async function EmpreendimentosPage({
         />
       ) : (
         <>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {lista.map((emp) => {
-            const nUnidades = unidadesPor.get(emp.id) ?? 0;
-            const nAbertos = abertosPor.get(emp.id) ?? 0;
-            const ultima = ultimaPor.get(emp.id);
-            const status = activityStatus(nAbertos, Boolean(ultima), 15);
-            return (
-              <Link
-                key={emp.id}
-                href={`/empreendimentos/${emp.id}`}
-                className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <div className="relative h-full overflow-hidden rounded-lg border bg-card transition-colors hover:bg-accent/40">
-                  <div
-                    aria-hidden
-                    className={`absolute top-0 bottom-0 left-0 w-[3px] ${ACTIVITY_STRIPE[status]}`}
-                  />
-                  <div className="space-y-1 px-5 py-4">
-                    <p className="text-base font-semibold">{emp.nome}</p>
-                    {emp.cliente ? (
-                      <p className="text-sm text-muted-foreground">
-                        {emp.cliente}
-                      </p>
-                    ) : null}
-                    {emp.endereco ? (
-                      <p className="line-clamp-1 text-xs text-muted-foreground/80">
-                        {emp.endereco}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-dashed border-border/70 px-5 py-2 font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
-                    <span>
-                      <span className="tabular-nums text-foreground">
-                        {String(nUnidades).padStart(2, "0")}
-                      </span>{" "}
-                      unidades
-                    </span>
-                    <span
-                      className={
-                        nAbertos > 0
-                          ? "text-amber-700 dark:text-amber-300"
-                          : ""
-                      }
-                    >
-                      <span className="tabular-nums">
-                        {String(nAbertos).padStart(2, "0")}
-                      </span>{" "}
-                      abertos
-                    </span>
-                    <span>
-                      última{" "}
-                      <span className="tabular-nums text-foreground">
-                        {ultima ? formatDateBR(ultima) : "—"}
-                      </span>
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {views.map((view) => (
+              <EmpreendimentoCard key={view.id} view={view} />
+            ))}
+          </div>
 
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          hrefForPage={(p) =>
-            p === 1 ? "/empreendimentos" : `/empreendimentos?page=${p}`
-          }
-        />
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            hrefForPage={(p) =>
+              p === 1 ? "/empreendimentos" : `/empreendimentos?page=${p}`
+            }
+          />
         </>
       )}
     </div>
