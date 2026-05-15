@@ -1,4 +1,5 @@
-import { and, desc, eq, count, isNotNull, lt, sql, inArray } from "drizzle-orm";
+import Link from "next/link";
+import { and, desc, eq, count, isNotNull, lt, sql } from "drizzle-orm";
 import { Plus, Building2 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Pagination } from "@/components/pagination";
@@ -17,42 +18,130 @@ import {
   EmpreendimentoCard,
   type EmpreendimentoCardView,
 } from "./empreendimento-card";
+import {
+  EmpreendimentosToolbar,
+  type SortKey,
+} from "./empreendimentos-toolbar";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 12;
+const SORT_KEYS: SortKey[] = [
+  "ativos",
+  "atrasados",
+  "recentes",
+  "alfabetico",
+  "sem-vistorias",
+];
 
 function emptyChips(): Record<Categoria, number> {
   return { ELE: 0, HID: 0, HVAC: 0, PISCINA: 0, ASP: 0, SIS: 0 };
 }
 
+function parseSortKey(s: string | undefined): SortKey {
+  if (s && (SORT_KEYS as string[]).includes(s)) return s as SortKey;
+  return "ativos";
+}
+
+function maxIso(a: string | null | undefined, b: string | null | undefined): string | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  return a > b ? a : b;
+}
+
 export default async function EmpreendimentosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    q?: string;
+    sort?: string;
+    hideEmpty?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const pageParam = Number(sp.page ?? "1");
   const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
-  const offset = (page - 1) * PAGE_SIZE;
+  const q = (sp.q ?? "").trim();
+  const sort = parseSortKey(sp.sort);
+  const hideEmpty = sp.hideEmpty === "1";
   const hojeISO = new Date().toISOString().slice(0, 10);
 
-  // Stats globais pra linha executiva no header — independem da pagina
-  // visivel, contam toda a base. 4 queries baratas em paralelo.
+  // Fetch tudo de uma vez. Pra escala atual (<100 empreendimentos) e melhor
+  // que paginar no DB porque filtros/sort dependem de agregados — fazer no
+  // DB exigiria joins complexos com subqueries. Em memoria fica direto.
   const [
-    [totalRow],
-    lista,
+    todosEmpreendimentos,
+    unidadesRows,
+    abertosRows,
+    resolvidosRows,
+    atrasadosRows,
+    chipsRows,
+    ultimaVistoriaRows,
+    ultimoEventoRows,
     [totalUnidadesRow],
     [totalAbertosRow],
     [totalAtrasadosRow],
   ] = await Promise.all([
-    db.select({ n: count() }).from(empreendimentos),
     db
       .select()
       .from(empreendimentos)
-      .orderBy(desc(empreendimentos.createdAt))
-      .limit(PAGE_SIZE)
-      .offset(offset),
+      .orderBy(desc(empreendimentos.createdAt)),
+    db
+      .select({ empreendimentoId: unidades.empreendimentoId, n: count() })
+      .from(unidades)
+      .groupBy(unidades.empreendimentoId),
+    db
+      .select({ empreendimentoId: unidades.empreendimentoId, n: count() })
+      .from(achados)
+      .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+      .where(eq(achados.status, "aberto"))
+      .groupBy(unidades.empreendimentoId),
+    db
+      .select({ empreendimentoId: unidades.empreendimentoId, n: count() })
+      .from(achados)
+      .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+      .where(eq(achados.status, "resolvido"))
+      .groupBy(unidades.empreendimentoId),
+    db
+      .select({ empreendimentoId: unidades.empreendimentoId, n: count() })
+      .from(achados)
+      .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+      .where(
+        and(
+          eq(achados.status, "aberto"),
+          isNotNull(achados.prazoEm),
+          lt(achados.prazoEm, hojeISO),
+        ),
+      )
+      .groupBy(unidades.empreendimentoId),
+    db
+      .select({
+        empreendimentoId: unidades.empreendimentoId,
+        categoria: achados.categoria,
+        n: count(),
+      })
+      .from(achados)
+      .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+      .where(eq(achados.status, "aberto"))
+      .groupBy(unidades.empreendimentoId, achados.categoria),
+    db
+      .select({
+        empreendimentoId: unidades.empreendimentoId,
+        ts: sql<string>`max(${vistorias.createdAt})`,
+      })
+      .from(vistorias)
+      .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
+      .groupBy(unidades.empreendimentoId),
+    db
+      .select({
+        empreendimentoId: unidades.empreendimentoId,
+        ts: sql<string>`max(${achadoEventos.createdAt})`,
+      })
+      .from(achadoEventos)
+      .innerJoin(achados, eq(achados.id, achadoEventos.achadoId))
+      .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+      .groupBy(unidades.empreendimentoId),
     db.select({ n: count() }).from(unidades),
     db
       .select({ n: count() })
@@ -70,123 +159,12 @@ export default async function EmpreendimentosPage({
       ),
   ]);
 
-  const total = Number(totalRow?.n ?? 0);
+  const total = todosEmpreendimentos.length;
   const totalUnidades = Number(totalUnidadesRow?.n ?? 0);
   const totalAbertos = Number(totalAbertosRow?.n ?? 0);
   const totalAtrasados = Number(totalAtrasadosRow?.n ?? 0);
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const empIds = lista.map((e) => e.id);
 
-  // Agregados pra cada empreendimento da pagina visivel. Tudo em paralelo
-  // pra reduzir round-trips no DB.
-  const [
-    unidadesRows,
-    abertosRows,
-    resolvidosRows,
-    atrasadosRows,
-    chipsRows,
-    ultimaVistoriaRows,
-    ultimoEventoRows,
-  ] =
-    empIds.length === 0
-      ? [[], [], [], [], [], [], []]
-      : await Promise.all([
-          db
-            .select({
-              empreendimentoId: unidades.empreendimentoId,
-              n: count(),
-            })
-            .from(unidades)
-            .where(inArray(unidades.empreendimentoId, empIds))
-            .groupBy(unidades.empreendimentoId),
-          db
-            .select({
-              empreendimentoId: unidades.empreendimentoId,
-              n: count(),
-            })
-            .from(achados)
-            .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
-            .where(
-              and(
-                eq(achados.status, "aberto"),
-                inArray(unidades.empreendimentoId, empIds),
-              ),
-            )
-            .groupBy(unidades.empreendimentoId),
-          db
-            .select({
-              empreendimentoId: unidades.empreendimentoId,
-              n: count(),
-            })
-            .from(achados)
-            .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
-            .where(
-              and(
-                eq(achados.status, "resolvido"),
-                inArray(unidades.empreendimentoId, empIds),
-              ),
-            )
-            .groupBy(unidades.empreendimentoId),
-          db
-            .select({
-              empreendimentoId: unidades.empreendimentoId,
-              n: count(),
-            })
-            .from(achados)
-            .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
-            .where(
-              and(
-                eq(achados.status, "aberto"),
-                isNotNull(achados.prazoEm),
-                lt(achados.prazoEm, hojeISO),
-                inArray(unidades.empreendimentoId, empIds),
-              ),
-            )
-            .groupBy(unidades.empreendimentoId),
-          // Distribuicao de abertos por (empreendimento, categoria).
-          // Alimenta os chips coloridos no card.
-          db
-            .select({
-              empreendimentoId: unidades.empreendimentoId,
-              categoria: achados.categoria,
-              n: count(),
-            })
-            .from(achados)
-            .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
-            .where(
-              and(
-                eq(achados.status, "aberto"),
-                inArray(unidades.empreendimentoId, empIds),
-              ),
-            )
-            .groupBy(unidades.empreendimentoId, achados.categoria),
-          db
-            .select({
-              empreendimentoId: unidades.empreendimentoId,
-              ts: sql<string>`max(${vistorias.createdAt})`,
-            })
-            .from(vistorias)
-            .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
-            .where(inArray(unidades.empreendimentoId, empIds))
-            .groupBy(unidades.empreendimentoId),
-          // max(achado_eventos.created_at) por empreendimento — pra capturar
-          // atividade que aconteceu DEPOIS da vistoria (ex: marcacao retroativa
-          // de resolvido). Junto com ultimaVistoria, da o snapshot mais
-          // fidedigno do "ativo ha quanto tempo".
-          db
-            .select({
-              empreendimentoId: unidades.empreendimentoId,
-              ts: sql<string>`max(${achadoEventos.createdAt})`,
-            })
-            .from(achadoEventos)
-            .innerJoin(achados, eq(achados.id, achadoEventos.achadoId))
-            .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
-            .where(inArray(unidades.empreendimentoId, empIds))
-            .groupBy(unidades.empreendimentoId),
-        ]);
-
-  // Indexa todos os agregados por empreendimentoId pra lookup O(1) na
-  // construcao do view model.
+  // Indexa todos os agregados por empreendimentoId.
   const unidadesPor = new Map(
     unidadesRows.map((r) => [r.empreendimentoId, Number(r.n)]),
   );
@@ -205,8 +183,6 @@ export default async function EmpreendimentosPage({
   const ultimoEventoPor = new Map(
     ultimoEventoRows.map((r) => [r.empreendimentoId, r.ts]),
   );
-
-  // (empreendimentoId, categoria) -> count.
   const chipsPor = new Map<string, Record<Categoria, number>>();
   for (const row of chipsRows) {
     const existing = chipsPor.get(row.empreendimentoId) ?? emptyChips();
@@ -214,14 +190,8 @@ export default async function EmpreendimentosPage({
     chipsPor.set(row.empreendimentoId, existing);
   }
 
-  // Pega a atividade mais recente entre vistoria criada e ultimo evento.
-  function maxIso(a: string | null | undefined, b: string | null | undefined): string | null {
-    if (!a) return b ?? null;
-    if (!b) return a;
-    return a > b ? a : b;
-  }
-
-  const views: EmpreendimentoCardView[] = lista.map((emp) => ({
+  // Constroi view models — um por empreendimento da base inteira.
+  let views: EmpreendimentoCardView[] = todosEmpreendimentos.map((emp) => ({
     id: emp.id,
     nome: emp.nome,
     cliente: emp.cliente,
@@ -237,8 +207,49 @@ export default async function EmpreendimentosPage({
     ),
   }));
 
+  // Filtro de texto: nome ou cliente. Lowercase comparison sem acento
+  // simples (o user nao deve digitar com acento e a base pode ter ou nao).
+  if (q.length > 0) {
+    const needle = q.toLowerCase();
+    views = views.filter((v) => {
+      const nome = v.nome.toLowerCase();
+      const cliente = (v.cliente ?? "").toLowerCase();
+      return nome.includes(needle) || cliente.includes(needle);
+    });
+  }
+
+  // Esconder sem atividade: sem unidades OU sem nenhuma vistoria.
+  if (hideEmpty) {
+    views = views.filter(
+      (v) => v.nUnidades > 0 && v.ultimaAtividadeISO !== null,
+    );
+  }
+
+  // Ordenacao em memoria sobre o view model — usa os mesmos campos que o
+  // card renderiza, evitando dupla source-of-truth.
+  views.sort((a, b) => sortCompare(a, b, sort));
+
+  // Pagina o resultado filtrado/ordenado.
+  const totalFiltrado = views.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE));
+  const offset = (page - 1) * PAGE_SIZE;
+  const pageViews = views.slice(offset, offset + PAGE_SIZE);
+
+  const hasAnyFilter = q.length > 0 || hideEmpty || sort !== "ativos";
+
+  // Mantem os params (exceto page) ao mudar de pagina.
+  const buildPageHref = (p: number): string => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (sort !== "ativos") params.set("sort", sort);
+    if (hideEmpty) params.set("hideEmpty", "1");
+    if (p > 1) params.set("page", String(p));
+    const qs = params.toString();
+    return `/empreendimentos${qs ? `?${qs}` : ""}`;
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
           <div>
@@ -292,7 +303,11 @@ export default async function EmpreendimentosPage({
         />
       </div>
 
-      {lista.length === 0 ? (
+      {total > 0 ? (
+        <EmpreendimentosToolbar q={q} sort={sort} hideEmpty={hideEmpty} />
+      ) : null}
+
+      {total === 0 ? (
         <EmptyState
           icon={Building2}
           eyebrow="Nenhum empreendimento ainda"
@@ -308,23 +323,78 @@ export default async function EmpreendimentosPage({
             />
           }
         />
+      ) : pageViews.length === 0 ? (
+        <div className="rounded-lg border bg-muted/30 p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            Nenhum empreendimento bate com{" "}
+            {q ? <strong>&ldquo;{q}&rdquo;</strong> : "o filtro atual"}.
+          </p>
+          {hasAnyFilter ? (
+            <Link
+              href="/empreendimentos"
+              className="mt-2 inline-block font-mono text-[11px] tracking-[0.06em] uppercase text-brand hover:underline"
+            >
+              Limpar filtros
+            </Link>
+          ) : null}
+        </div>
       ) : (
         <>
+          {hasAnyFilter ? (
+            <p className="font-mono text-[10px] tracking-[0.06em] uppercase text-muted-foreground">
+              Mostrando{" "}
+              <strong className="tabular-nums text-foreground">
+                {totalFiltrado}
+              </strong>{" "}
+              de {total}
+            </p>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {views.map((view) => (
+            {pageViews.map((view) => (
               <EmpreendimentoCard key={view.id} view={view} />
             ))}
           </div>
 
-          <Pagination
-            page={page}
-            totalPages={totalPages}
-            hrefForPage={(p) =>
-              p === 1 ? "/empreendimentos" : `/empreendimentos?page=${p}`
-            }
-          />
+          <Pagination page={page} totalPages={totalPages} hrefForPage={buildPageHref} />
         </>
       )}
     </div>
   );
+}
+
+function sortCompare(
+  a: EmpreendimentoCardView,
+  b: EmpreendimentoCardView,
+  sort: SortKey,
+): number {
+  switch (sort) {
+    case "alfabetico":
+      return a.nome.localeCompare(b.nome, "pt-BR");
+    case "recentes":
+      // Recentes = ordem default original (createdAt desc do query) ja
+      // chegou ordenada. Sem campo createdAt no view model, usa
+      // ultimaAtividadeISO como aproximacao razoavel.
+      return cmpIsoDesc(a.ultimaAtividadeISO, b.ultimaAtividadeISO);
+    case "atrasados":
+      // Atrasados primeiro, depois ativos.
+      if (a.nAtrasados !== b.nAtrasados) return b.nAtrasados - a.nAtrasados;
+      return cmpIsoDesc(a.ultimaAtividadeISO, b.ultimaAtividadeISO);
+    case "sem-vistorias":
+      // Os COM vistorias na frente, sem vistorias no fim. Dentro de cada
+      // grupo, mais ativos primeiro.
+      const aHas = a.ultimaAtividadeISO !== null ? 1 : 0;
+      const bHas = b.ultimaAtividadeISO !== null ? 1 : 0;
+      if (aHas !== bHas) return bHas - aHas;
+      return cmpIsoDesc(a.ultimaAtividadeISO, b.ultimaAtividadeISO);
+    case "ativos":
+    default:
+      return cmpIsoDesc(a.ultimaAtividadeISO, b.ultimaAtividadeISO);
+  }
+}
+
+function cmpIsoDesc(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return a > b ? -1 : 1;
 }
