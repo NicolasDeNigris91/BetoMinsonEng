@@ -23,6 +23,15 @@ import {
 } from "@/db/schema";
 import { CACHE_TAGS } from "@/lib/cache-tags";
 
+export type AchadoSemPrazo = {
+  id: string;
+  categoria: Categoria;
+  local: string | null;
+  descricao: string;
+  empreendimentoNome: string;
+  unidadeNome: string;
+};
+
 export type DashboardActivity =
   | {
       kind: "evento";
@@ -83,6 +92,7 @@ async function fetchDashboardData(seteDiasAtrasISO: string) {
     [atrasadosTotal],
     proximasPendencias,
     [achadosSemPrazoRow],
+    achadosSemPrazo,
     atividade,
   ] = await Promise.all([
     db
@@ -169,6 +179,31 @@ async function fetchDashboardData(seteDiasAtrasISO: string) {
           sql`${achados.prazoEm} IS NULL`,
         ),
       ),
+    // Lista detalhada dos sem prazo — limitada pro modal nao virar uma
+    // tela infinita; suficiente pros casos comuns.
+    db
+      .select({
+        id: achados.id,
+        categoria: achados.categoria,
+        local: achados.local,
+        descricao: achados.descricao,
+        empreendimentoNome: empreendimentos.nome,
+        unidadeNome: unidades.nome,
+      })
+      .from(achados)
+      .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+      .innerJoin(
+        empreendimentos,
+        eq(empreendimentos.id, unidades.empreendimentoId),
+      )
+      .where(
+        and(
+          eq(achados.status, "aberto"),
+          sql`${achados.prazoEm} IS NULL`,
+        ),
+      )
+      .orderBy(asc(empreendimentos.nome), asc(unidades.nome), asc(achados.createdAt))
+      .limit(50),
     fetchAtividadeRecente(),
   ]);
 
@@ -198,6 +233,7 @@ async function fetchDashboardData(seteDiasAtrasISO: string) {
     deltaAbertos,
     deltaVistorias,
     proximasPendencias,
+    achadosSemPrazo,
     atividade,
   };
 }

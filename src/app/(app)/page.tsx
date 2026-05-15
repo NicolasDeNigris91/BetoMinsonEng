@@ -1,10 +1,5 @@
 import Link from "next/link";
-import {
-  AlertTriangle,
-  ArrowRight,
-  Building2,
-  ClipboardList,
-} from "lucide-react";
+import { ArrowRight, Building2, ClipboardList } from "lucide-react";
 import { StatCard } from "@/components/stat-card";
 import { PrazoBadge } from "@/components/prazo-badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +8,7 @@ import { CATEGORIA_DOT } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
 import { getDashboardData } from "./dashboard-data";
 import { DashboardAtividade } from "./dashboard-activity";
+import { DashboardPrazoBanner } from "./dashboard-prazo-banner";
 
 // force-dynamic intencional: a pagina passa por requireSession (cookie),
 // que ja torna o request dinamico. Os dados pesados sao cacheados em
@@ -32,9 +28,11 @@ export default async function HomePage() {
     totalVistoriasSemana,
     totalEmp,
     totalUnid,
+    totalSemPrazo,
     deltaAbertos,
     deltaVistorias,
     proximasPendencias,
+    achadosSemPrazo,
     atividade,
   } = await getDashboardData(seteDiasAtrasISO);
 
@@ -198,19 +196,11 @@ export default async function HomePage() {
         </div>
       ) : null}
 
-      {totalAbertos > 0 && proximasPendencias.length === 0 ? (
-        <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50/60 p-3 text-sm dark:border-amber-800 dark:bg-amber-900/20">
-          <AlertTriangle
-            className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300"
-            aria-hidden
-          />
-          <p className="text-amber-900 dark:text-amber-200">
-            Existem <strong>{totalAbertos}</strong>{" "}
-            {totalAbertos === 1 ? "achado em aberto" : "achados em aberto"} sem
-            prazo definido. Defina prazos pra priorizar o que cobrar primeiro.
-          </p>
-        </div>
-      ) : null}
+      <DashboardPrazoBanner
+        totalAbertos={totalAbertos}
+        totalSemPrazo={totalSemPrazo}
+        achadosSemPrazo={achadosSemPrazo}
+      />
     </div>
   );
 }
