@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, desc, and, count, asc, sql } from "drizzle-orm";
-import { CheckCircle2, ClipboardList, Pencil, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, ClipboardList, History, Pencil, Plus, Trash2 } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { EmptyState } from "@/components/empty-state";
 import { StatCard } from "@/components/stat-card";
@@ -293,6 +293,16 @@ export default async function UnidadeDetailPage({
           ) : null}
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            render={
+              <Link href={`/empreendimentos/${id}/unidades/${unidade.id}/historico`} />
+            }
+          >
+            <History className="mr-1.5 size-4" />
+            Histórico
+          </Button>
           <UnidadeFormDialog
             empreendimentoId={id}
             unidade={unidade}
