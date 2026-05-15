@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, asc, count, sql } from "drizzle-orm";
-import { Home, Pencil, Plus, Trash2 } from "lucide-react";
+import { FileText, Home, Pencil, Plus, Trash2 } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
@@ -108,6 +108,20 @@ export default async function EmpreendimentoDetailPage({
           ) : null}
         </div>
         <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            render={
+              <a
+                href={`/api/pdf/consolidado/${emp.id}`}
+                target="_blank"
+                rel="noreferrer"
+              />
+            }
+          >
+            <FileText className="mr-1.5 size-4" />
+            Relatório consolidado
+          </Button>
           <EmpreendimentoFormDialog
             empreendimento={emp}
             trigger={
