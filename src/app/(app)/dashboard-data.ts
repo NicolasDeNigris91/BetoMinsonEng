@@ -4,6 +4,7 @@ import {
   and,
   asc,
   count,
+  desc,
   eq,
   gte,
   isNotNull,
@@ -270,7 +271,7 @@ async function fetchAtividadeRecente(): Promise<DashboardActivity[]> {
           empreendimentos,
           eq(empreendimentos.id, unidades.empreendimentoId),
         )
-        .orderBy(sql`${achadoEventos.createdAt} desc`)
+        .orderBy(desc(achadoEventos.createdAt))
         .limit(ATIVIDADE_LIMIT),
       db
         .select({
@@ -289,7 +290,7 @@ async function fetchAtividadeRecente(): Promise<DashboardActivity[]> {
           empreendimentos,
           eq(empreendimentos.id, unidades.empreendimentoId),
         )
-        .orderBy(sql`${vistorias.createdAt} desc`)
+        .orderBy(desc(vistorias.createdAt))
         .limit(ATIVIDADE_LIMIT),
       db
         .select({
@@ -308,7 +309,7 @@ async function fetchAtividadeRecente(): Promise<DashboardActivity[]> {
           eq(empreendimentos.id, unidades.empreendimentoId),
         )
         .where(isNotNull(vistorias.finalizadaEm))
-        .orderBy(sql`${vistorias.finalizadaEm} desc`)
+        .orderBy(desc(vistorias.finalizadaEm))
         .limit(ATIVIDADE_LIMIT),
       // Contagem de fotos por evento — usado pra mostrar "3 fotos adicionadas"
       // junto do evento criado quando aplicavel. Limita pros mesmos eventos
