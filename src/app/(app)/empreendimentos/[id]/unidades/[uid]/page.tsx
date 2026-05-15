@@ -18,11 +18,13 @@ import {
   vistorias,
   achados,
   achadoEventos,
+  categoriaEnum,
   CATEGORIA_LABELS,
+  type AchadoStatus,
   type Categoria,
   type EventoTipo,
 } from "@/db/schema";
-import { formatDateBR, formatDateTimeBR } from "@/lib/format";
+import { evaluatePrazo, formatDateBR, formatDateTimeBR } from "@/lib/format";
 import {
   CATEGORIA_DOT,
   VISTORIA_STATUS_BADGE,
@@ -32,6 +34,10 @@ import { cn } from "@/lib/utils";
 import { UnidadeFormDialog } from "../../unidade-form";
 import { deleteUnidadeAction } from "../../actions";
 import { NovaVistoriaDialog } from "./nova-vistoria-dialog";
+import {
+  UnidadeFilters,
+  type StatusFilter,
+} from "./unidade-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +48,41 @@ type EventoView = {
   createdAt: Date;
   categoria: Categoria;
 };
+
+const VALID_STATUS: StatusFilter[] = ["todos", "aberto", "atrasado", "resolvido"];
+
+function parseSearchParams(sp: { cat?: string; status?: string }): {
+  selectedCategorias: Categoria[];
+  selectedStatus: StatusFilter;
+} {
+  const validCats = new Set<Categoria>(categoriaEnum.enumValues);
+  const selectedCategorias = (sp.cat ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s): s is Categoria => validCats.has(s as Categoria));
+  const statusParam = (sp.status ?? "todos") as StatusFilter;
+  const selectedStatus: StatusFilter = VALID_STATUS.includes(statusParam)
+    ? statusParam
+    : "todos";
+  return { selectedCategorias, selectedStatus };
+}
+
+function achadoMatchesFilter(
+  achado: { categoria: Categoria; status: AchadoStatus; prazoEm: string | null },
+  selectedCategorias: Categoria[],
+  selectedStatus: StatusFilter,
+): boolean {
+  if (selectedCategorias.length > 0 && !selectedCategorias.includes(achado.categoria)) {
+    return false;
+  }
+  if (selectedStatus === "todos") return true;
+  if (selectedStatus === "resolvido") return achado.status === "resolvido";
+  if (selectedStatus === "aberto") return achado.status === "aberto";
+  // atrasado = aberto com prazo vencido
+  if (achado.status !== "aberto") return false;
+  const prazo = evaluatePrazo(achado.prazoEm);
+  return prazo?.kind === "atrasado";
+}
 
 type LinhaAudit = {
   achadoId: string;
@@ -135,10 +176,13 @@ function EventoLine({
 
 export default async function UnidadeDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string; uid: string }>;
+  searchParams: Promise<{ cat?: string; status?: string }>;
 }) {
-  const { id, uid } = await params;
+  const [{ id, uid }, sp] = await Promise.all([params, searchParams]);
+  const { selectedCategorias, selectedStatus } = parseSearchParams(sp);
 
   const [
     [unidade],
@@ -146,7 +190,7 @@ export default async function UnidadeDetailPage({
     vistoriasList,
     [achadosCounts],
     chipRows,
-    categoriasPresentesRows,
+    achadosDaUnidade,
     eventosRows,
     achadosAbertosRows,
   ] = await Promise.all([
@@ -191,9 +235,15 @@ export default async function UnidadeDetailPage({
         ),
       )
       .groupBy(achadoEventos.vistoriaId, achados.categoria),
-    // Categorias que aparecem em pelo menos um achado da unidade.
+    // Todos os achados da unidade — usado pra: contagem por categoria (chips),
+    // mapa de status/prazo (filtro), e categorias presentes (quais chips mostrar).
     db
-      .selectDistinct({ categoria: achados.categoria })
+      .select({
+        id: achados.id,
+        categoria: achados.categoria,
+        status: achados.status,
+        prazoEm: achados.prazoEm,
+      })
       .from(achados)
       .where(eq(achados.unidadeId, uid)),
     // Eventos de todas as vistorias da unidade — alimenta o audit log
@@ -228,6 +278,30 @@ export default async function UnidadeDetailPage({
 
   if (!unidade || !emp) notFound();
 
+  // Mapa achadoId -> dados — base do filtro aplicado em event rows.
+  const achadoById = new Map(achadosDaUnidade.map((a) => [a.id, a]));
+
+  // Conjunto de achadoIds que batem o filtro atual.
+  const achadosFiltradosIds = new Set(
+    achadosDaUnidade
+      .filter((a) => achadoMatchesFilter(a, selectedCategorias, selectedStatus))
+      .map((a) => a.id),
+  );
+
+  // Contagem total de achados por categoria (sem filtro) — exibida nos chips.
+  const totaisPorCategoria: Record<Categoria, number> = {
+    ELE: 0,
+    HID: 0,
+    HVAC: 0,
+    PISCINA: 0,
+    ASP: 0,
+    SIS: 0,
+  };
+  for (const a of achadosDaUnidade) totaisPorCategoria[a.categoria]++;
+
+  const hasFilter =
+    selectedCategorias.length > 0 || selectedStatus !== "todos";
+
   // (vistoriaId -> Map<categoria, count>) — lookup O(1) na hora de renderizar.
   const chipsByVistoria = new Map<string, Map<Categoria, number>>();
   for (const row of chipRows) {
@@ -239,9 +313,11 @@ export default async function UnidadeDetailPage({
     inner.set(row.categoria, Number(row.n));
   }
 
-  // (vistoriaId -> EventoView[]) na ordem cronologica.
+  // (vistoriaId -> EventoView[]) na ordem cronologica, ja filtrada pelo
+  // estado do achado correspondente.
   const eventosByVistoria = new Map<string, EventoView[]>();
   for (const row of eventosRows) {
+    if (!achadosFiltradosIds.has(row.achadoId)) continue;
     const arr = eventosByVistoria.get(row.vistoriaId) ?? [];
     arr.push(row);
     eventosByVistoria.set(row.vistoriaId, arr);
@@ -256,20 +332,32 @@ export default async function UnidadeDetailPage({
     "ASP",
     "SIS",
   ];
-  const setPresente = new Set(categoriasPresentesRows.map((r) => r.categoria));
-  const categoriasNaUnidade = ORDEM_CATEGORIA.filter((c) => setPresente.has(c));
+  const categoriasPresentes: Categoria[] = ORDEM_CATEGORIA.filter(
+    (c) => totaisPorCategoria[c] > 0,
+  );
 
   // Pendencias globais da unidade — alimenta o botao "Resolver pendencias"
-  // no header. Como a resolucao agora e retroativa (grava na vistoria de
-  // origem), nao precisamos pre-carregar estado de marcacao — todos os
-  // achados em aberto sao pendencias com alreadyResolved=false.
-  const pendenciasGlobais: PendenciaView[] = achadosAbertosRows.map((a) => ({
-    id: a.id,
-    categoria: a.categoria,
-    local: a.local,
-    descricao: a.descricao,
-    prazoEm: a.prazoEm,
-  }));
+  // no header. Aplica o filtro ativo: se o usuario filtrou pra "atrasado HID",
+  // o botao mostra a contagem e as pendencias dessa fatia.
+  const pendenciasGlobais: PendenciaView[] = achadosAbertosRows
+    .filter((a) => {
+      const achado = achadoById.get(a.id);
+      if (!achado) return false;
+      return achadoMatchesFilter(achado, selectedCategorias, selectedStatus);
+    })
+    .map((a) => ({
+      id: a.id,
+      categoria: a.categoria,
+      local: a.local,
+      descricao: a.descricao,
+      prazoEm: a.prazoEm,
+    }));
+
+  // Vistorias visiveis: quando ha filtro, esconde vistorias que ficaram
+  // sem nenhum event row depois do filtro.
+  const vistoriasVisiveis = hasFilter
+    ? vistoriasList.filter((v) => (eventosByVistoria.get(v.id)?.length ?? 0) > 0)
+    : vistoriasList;
 
   return (
     <div className="space-y-6">
@@ -341,6 +429,15 @@ export default async function UnidadeDetailPage({
         />
       </div>
 
+      <UnidadeFilters
+        categoriasPresentes={categoriasPresentes}
+        totaisPorCategoria={totaisPorCategoria}
+        selectedCategorias={selectedCategorias}
+        selectedStatus={selectedStatus}
+        matchCount={achadosFiltradosIds.size}
+        totalCount={achadosDaUnidade.length}
+      />
+
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
@@ -390,9 +487,13 @@ export default async function UnidadeDetailPage({
               />
             }
           />
+        ) : vistoriasVisiveis.length === 0 ? (
+          <p className="rounded-lg border bg-muted/30 p-6 text-sm text-center text-muted-foreground">
+            Nenhuma vistoria com achados que combinam com o filtro atual.
+          </p>
         ) : (
           <div className="space-y-2">
-            {vistoriasList.map((v) => {
+            {vistoriasVisiveis.map((v) => {
               const counts = chipsByVistoria.get(v.id);
               const eventos = eventosByVistoria.get(v.id) ?? [];
               const linhasAudit = pairEventosPorAchado(eventos);
@@ -426,9 +527,9 @@ export default async function UnidadeDetailPage({
                       </div>
                     </div>
 
-                    {categoriasNaUnidade.length > 0 ? (
+                    {categoriasPresentes.length > 0 ? (
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-dashed border-border/70 px-5 py-2">
-                        {categoriasNaUnidade.map((cat) => {
+                        {categoriasPresentes.map((cat) => {
                           const n = counts?.get(cat) ?? 0;
                           const label = CATEGORIA_LABELS[cat].toLowerCase();
                           return (
