@@ -23,12 +23,6 @@ export type PdfRow = {
   };
 };
 
-export type PdfStats = {
-  achados: number;
-  abertos: number;
-  resolvidos: number;
-};
-
 export type PdfData = {
   empreendimentoNome: string;
   empreendimentoCliente: string | null;
@@ -38,7 +32,6 @@ export type PdfData = {
   vistoriadorNome: string | null;
   observacoesGerais: string | null;
   rows: PdfRow[];
-  stats: PdfStats;
   finalizadaEmBR: string | null;
   geradoEmBR: string;
   logoDataUri: string | null;
@@ -259,22 +252,7 @@ export function renderPdfHtml(data: PdfData): string {
 
 <div class="header-divider"></div>
 
-<div class="stat-row">
-  <div class="stat">
-    <p class="stat-label">Achados</p>
-    <p class="stat-value">${String(data.stats.achados).padStart(2, "0")}</p>
-  </div>
-  <div class="stat">
-    <p class="stat-label">Em aberto</p>
-    <p class="stat-value accent">${String(data.stats.abertos).padStart(2, "0")}</p>
-  </div>
-  <div class="stat">
-    <p class="stat-label">Resolvidos</p>
-    <p class="stat-value">${String(data.stats.resolvidos).padStart(2, "0")}</p>
-  </div>
-</div>
-
-<h2 class="section-title section-title-spaced">Achados desta vistoria</h2>
+<h2 class="section-title">Achados desta vistoria</h2>
 <ul class="achados">${achadosHtml}</ul>
 
 ${obsHtml}
