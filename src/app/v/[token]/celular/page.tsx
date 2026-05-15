@@ -135,14 +135,15 @@ export default async function MobileUploadPage({
             className="h-8 w-auto"
           />
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground">
               Modo celular · upload de fotos
             </p>
-            <h1 className="text-lg font-semibold mt-0.5">
+            <h1 className="mt-0.5 text-[20px] font-extrabold leading-tight tracking-[-0.015em]">
               {emp?.nome ?? "Empreendimento"}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {unidade?.nome ?? ""} · {formatDateBR(vistoria.data)}
+              {unidade?.nome ?? ""} ·{" "}
+              <span className="font-tech">{formatDateBR(vistoria.data)}</span>
             </p>
           </div>
         </div>

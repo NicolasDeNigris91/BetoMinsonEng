@@ -83,3 +83,28 @@ export const VISTORIA_STATUS_STRIPE: Record<VistoriaStatus, string> = {
   rascunho: "bg-amber-500 dark:bg-amber-400",
   finalizada: "bg-emerald-500 dark:bg-emerald-400",
 };
+
+/** Status semantico para cards de empreendimento/unidade, derivado da
+ *  atividade de achados em aberto. Alimenta a faixa lateral colorida. */
+export type ActivityStatus = "success" | "warning" | "destructive" | "neutral";
+
+export const ACTIVITY_STRIPE: Record<ActivityStatus, string> = {
+  success: "bg-emerald-500 dark:bg-emerald-400",
+  warning: "bg-amber-500 dark:bg-amber-400",
+  destructive: "bg-red-500 dark:bg-red-400",
+  neutral: "bg-muted-foreground/30",
+};
+
+/** Decide o status do card a partir de # de achados abertos. Sem vistorias
+ *  ainda = neutral (cinza); 0 abertos = success; >= destructiveThreshold
+ *  = destructive; caso contrario warning. */
+export function activityStatus(
+  abertos: number,
+  hasVistorias: boolean,
+  destructiveThreshold: number,
+): ActivityStatus {
+  if (!hasVistorias) return "neutral";
+  if (abertos === 0) return "success";
+  if (abertos >= destructiveThreshold) return "destructive";
+  return "warning";
+}

@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import { eq, desc, and, count, sql } from "drizzle-orm";
 import { ClipboardList, Pencil, Plus, Trash2 } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
+import { EmptyState } from "@/components/empty-state";
 import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { db } from "@/db";
 import {
@@ -193,23 +193,22 @@ export default async function UnidadeDetailPage({
         </div>
 
         {vistoriasList.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <ClipboardList className="size-10 text-muted-foreground/40" />
-              <p className="mt-3 text-sm text-muted-foreground">
-                Nenhuma vistoria registrada nesta unidade.
-              </p>
+          <EmptyState
+            icon={ClipboardList}
+            eyebrow="Sem vistorias registradas"
+            description="Crie a primeira vistoria pra começar a registrar achados."
+            action={
               <NovaVistoriaDialog
                 unidadeId={unidade.id}
                 trigger={
-                  <Button size="sm" className="mt-3">
+                  <Button size="sm">
                     <Plus className="mr-1.5 size-4" />
                     Criar primeira vistoria
                   </Button>
                 }
               />
-            </CardContent>
-          </Card>
+            }
+          />
         ) : (
           <div className="space-y-2">
             {vistoriasList.map((v) => {

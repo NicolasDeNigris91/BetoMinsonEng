@@ -1,19 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, count, sql } from "drizzle-orm";
 import { Home, Pencil, Plus, Trash2 } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
+import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { db } from "@/db";
-import { empreendimentos, unidades } from "@/db/schema";
+import { achados, empreendimentos, unidades, vistorias } from "@/db/schema";
+import { formatDateBR } from "@/lib/format";
+import {
+  ACTIVITY_STRIPE,
+  activityStatus,
+} from "@/lib/category-styles";
 import { EmpreendimentoFormDialog } from "../empreendimento-form";
 import { deleteEmpreendimentoAction } from "../actions";
 import { UnidadeFormDialog } from "./unidade-form";
@@ -27,20 +26,64 @@ export default async function EmpreendimentoDetailPage({
 }) {
   const { id } = await params;
 
-  const [[emp], lista] = await Promise.all([
-    db
-      .select()
-      .from(empreendimentos)
-      .where(eq(empreendimentos.id, id))
-      .limit(1),
-    db
-      .select()
-      .from(unidades)
-      .where(eq(unidades.empreendimentoId, id))
-      .orderBy(asc(unidades.ordem), asc(unidades.nome)),
-  ]);
+  const [[emp], lista, vistoriasRows, abertosRows, ultimasRows] =
+    await Promise.all([
+      db
+        .select()
+        .from(empreendimentos)
+        .where(eq(empreendimentos.id, id))
+        .limit(1),
+      db
+        .select()
+        .from(unidades)
+        .where(eq(unidades.empreendimentoId, id))
+        .orderBy(asc(unidades.ordem), asc(unidades.nome)),
+      db
+        .select({ unidadeId: vistorias.unidadeId, n: count() })
+        .from(vistorias)
+        .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
+        .where(eq(unidades.empreendimentoId, id))
+        .groupBy(vistorias.unidadeId),
+      db
+        .select({ unidadeId: achados.unidadeId, n: count() })
+        .from(achados)
+        .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+        .where(eq(unidades.empreendimentoId, id))
+        .groupBy(achados.unidadeId),
+      db
+        .select({
+          unidadeId: vistorias.unidadeId,
+          data: sql<string>`max(${vistorias.data})`,
+        })
+        .from(vistorias)
+        .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
+        .where(eq(unidades.empreendimentoId, id))
+        .groupBy(vistorias.unidadeId),
+    ]);
 
   if (!emp) notFound();
+
+  // achadosAbertos por unidade exige filtro adicional; reutiliza lista anterior
+  // mas filtrando status='aberto' separadamente.
+  const abertosOpenRows = await db
+    .select({ unidadeId: achados.unidadeId, n: count() })
+    .from(achados)
+    .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+    .where(
+      sql`${unidades.empreendimentoId} = ${id} AND ${achados.status} = 'aberto'`,
+    )
+    .groupBy(achados.unidadeId);
+
+  const vistoriasPor = new Map(
+    vistoriasRows.map((r) => [r.unidadeId, Number(r.n)]),
+  );
+  const abertosPor = new Map(
+    abertosOpenRows.map((r) => [r.unidadeId, Number(r.n)]),
+  );
+  const totalAchadosPor = new Map(
+    abertosRows.map((r) => [r.unidadeId, Number(r.n)]),
+  );
+  const ultimaPor = new Map(ultimasRows.map((r) => [r.unidadeId, r.data]));
 
   return (
     <div className="space-y-6">
@@ -106,43 +149,87 @@ export default async function EmpreendimentoDetailPage({
         </div>
 
         {lista.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <Home className="size-10 text-muted-foreground/40" />
-              <p className="mt-3 text-sm text-muted-foreground">
-                Nenhuma unidade cadastrada.
-              </p>
+          <EmptyState
+            icon={Home}
+            eyebrow="Sem unidades cadastradas"
+            description="Adicione a primeira unidade pra começar a registrar vistorias."
+            action={
               <UnidadeFormDialog
                 empreendimentoId={emp.id}
                 trigger={
-                  <Button size="sm" className="mt-3">
+                  <Button size="sm">
                     <Plus className="mr-1.5 size-4" />
                     Adicionar unidade
                   </Button>
                 }
               />
-            </CardContent>
-          </Card>
+            }
+          />
         ) : (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {lista.map((un) => (
-              <Link
-                key={un.id}
-                href={`/empreendimentos/${emp.id}/unidades/${un.id}`}
-                className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
-              >
-                <Card className="h-full transition-colors hover:bg-accent/40">
-                  <CardHeader>
-                    <CardTitle className="text-base">{un.nome}</CardTitle>
-                    {un.observacoes ? (
-                      <CardDescription className="line-clamp-2">
-                        {un.observacoes}
-                      </CardDescription>
-                    ) : null}
-                  </CardHeader>
-                </Card>
-              </Link>
-            ))}
+            {lista.map((un) => {
+              const nVistorias = vistoriasPor.get(un.id) ?? 0;
+              const nAbertos = abertosPor.get(un.id) ?? 0;
+              const totalAchados = totalAchadosPor.get(un.id) ?? 0;
+              const ultima = ultimaPor.get(un.id);
+              const status = activityStatus(nAbertos, nVistorias > 0, 5);
+              return (
+                <Link
+                  key={un.id}
+                  href={`/empreendimentos/${emp.id}/unidades/${un.id}`}
+                  className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <div className="relative h-full overflow-hidden rounded-lg border bg-card transition-colors hover:bg-accent/40">
+                    <div
+                      aria-hidden
+                      className={`absolute top-0 bottom-0 left-0 w-[3px] ${ACTIVITY_STRIPE[status]}`}
+                    />
+                    <div className="space-y-1 px-5 py-4">
+                      <p className="text-base font-semibold">{un.nome}</p>
+                      {un.observacoes ? (
+                        <p className="line-clamp-2 text-xs text-muted-foreground">
+                          {un.observacoes}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-dashed border-border/70 px-5 py-2 font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
+                      <span>
+                        <span className="tabular-nums text-foreground">
+                          {String(nVistorias).padStart(2, "0")}
+                        </span>{" "}
+                        vistorias
+                      </span>
+                      <span
+                        className={
+                          nAbertos > 0
+                            ? "text-amber-700 dark:text-amber-300"
+                            : ""
+                        }
+                      >
+                        <span className="tabular-nums">
+                          {String(nAbertos).padStart(2, "0")}
+                        </span>{" "}
+                        abertos
+                      </span>
+                      {totalAchados - nAbertos > 0 ? (
+                        <span>
+                          <span className="tabular-nums">
+                            {String(totalAchados - nAbertos).padStart(2, "0")}
+                          </span>{" "}
+                          resolv.
+                        </span>
+                      ) : null}
+                      <span>
+                        última{" "}
+                        <span className="tabular-nums text-foreground">
+                          {ultima ? formatDateBR(ultima) : "—"}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>

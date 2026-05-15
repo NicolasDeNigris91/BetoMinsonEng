@@ -213,71 +213,92 @@ export default async function SharePage({
               {visibleEventos.map((ev) => {
                 if (!ev.achado) return null;
                 const eventoBadge = EVENTO_BADGE[ev.tipo];
+                const hasFotos = ev.fotos.length > 0;
+                const header = (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "font-mono text-xs",
+                        CATEGORIA_BADGE_CLASS[ev.achado.categoria],
+                      )}
+                    >
+                      {CATEGORIA_LABELS[ev.achado.categoria]}
+                    </Badge>
+                    {ev.achado.local ? (
+                      <span className="text-sm font-medium">
+                        {ev.achado.local}
+                      </span>
+                    ) : null}
+                    {eventoBadge ? (
+                      <Badge variant="outline" className={eventoBadge.className}>
+                        {eventoBadge.label}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs">
+                        Achado criado
+                      </Badge>
+                    )}
+                  </div>
+                );
+
                 return (
                   <li
                     key={ev.id}
                     className={cn(
-                      "rounded-lg border border-l-4 bg-background p-4 space-y-2 shadow-sm",
+                      "rounded-lg border border-l-4 bg-background p-4 shadow-sm",
                       CATEGORIA_STRIPE_BORDER[ev.achado.categoria],
                     )}
                   >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        variant="outline"
-                        className={cn("font-mono text-xs", CATEGORIA_BADGE_CLASS[ev.achado.categoria])}
-                      >
-                        {CATEGORIA_LABELS[ev.achado.categoria]}
-                      </Badge>
-                      {ev.achado.local ? (
-                        <span className="text-sm font-medium">
-                          {ev.achado.local}
-                        </span>
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start">
+                      {hasFotos ? (
+                        <div className="md:w-72 md:shrink-0">
+                          <div
+                            className={cn(
+                              "grid gap-2",
+                              ev.fotos.length === 1
+                                ? "grid-cols-1"
+                                : "grid-cols-2",
+                            )}
+                          >
+                            {ev.fotos.map((f) => (
+                              <figure key={f.id} className="space-y-1">
+                                <a
+                                  href={`/api/files/${f.arquivoPath}?token=${encodeURIComponent(token)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={`/api/files/${f.thumbPath}?token=${encodeURIComponent(token)}`}
+                                    alt={f.legenda ?? ""}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="aspect-square w-full rounded-md border object-cover"
+                                  />
+                                </a>
+                                {f.legenda ? (
+                                  <figcaption className="text-xs text-muted-foreground line-clamp-2">
+                                    {f.legenda}
+                                  </figcaption>
+                                ) : null}
+                              </figure>
+                            ))}
+                          </div>
+                        </div>
                       ) : null}
-                      {eventoBadge ? (
-                        <Badge variant="outline" className={eventoBadge.className}>
-                          {eventoBadge.label}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs">
-                          Achado criado
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-sm whitespace-pre-line">
-                      {ev.achado.descricao}
-                    </p>
-                    {ev.notaExtra ? (
-                      <p className="text-sm border-l-2 pl-3 italic text-muted-foreground whitespace-pre-line">
-                        {ev.notaExtra}
-                      </p>
-                    ) : null}
-                    {ev.fotos.length > 0 ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-2">
-                        {ev.fotos.map((f) => (
-                          <figure key={f.id} className="space-y-1">
-                            <a
-                              href={`/api/files/${f.arquivoPath}?token=${encodeURIComponent(token)}`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={`/api/files/${f.thumbPath}?token=${encodeURIComponent(token)}`}
-                                alt={f.legenda ?? ""}
-                                loading="lazy"
-                                decoding="async"
-                                className="aspect-square w-full rounded-md border object-cover"
-                              />
-                            </a>
-                            {f.legenda ? (
-                              <figcaption className="text-xs text-muted-foreground line-clamp-2">
-                                {f.legenda}
-                              </figcaption>
-                            ) : null}
-                          </figure>
-                        ))}
+                      <div className="min-w-0 flex-1 space-y-2">
+                        {header}
+                        <p className="text-sm whitespace-pre-line">
+                          {ev.achado.descricao}
+                        </p>
+                        {ev.notaExtra ? (
+                          <p className="border-l-2 pl-3 text-sm italic text-muted-foreground whitespace-pre-line">
+                            {ev.notaExtra}
+                          </p>
+                        ) : null}
                       </div>
-                    ) : null}
+                    </div>
                   </li>
                 );
               })}
