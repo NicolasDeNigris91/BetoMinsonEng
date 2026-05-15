@@ -19,7 +19,15 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, ImagePlus, X, Loader2, Upload, PenLine } from "lucide-react";
+import {
+  GripVertical,
+  ImagePlus,
+  PenLine,
+  Loader2,
+  Pencil,
+  Upload,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { PhotoEditor } from "@/components/photo-editor";
@@ -85,6 +93,16 @@ export function PhotoUploader({
     remaining: File[];
     processed: File[];
   } | null>(null);
+  // Estado quando o usuario clica "marcar" numa foto JA enviada: baixamos
+  // o arquivo original, abrimos o PhotoEditor com ele, e ao confirmar
+  // chamamos /api/photo/[id]/replace pra trocar os bytes preservando ordem.
+  const [editingFoto, setEditingFoto] = useState<{
+    fotoId: string;
+    file: File;
+  } | null>(null);
+  const [loadingFotoForEdit, setLoadingFotoForEdit] = useState<string | null>(
+    null,
+  );
 
   // Ordem otimista local — espelha a do server por default e muda
   // imediatamente no drop pra sensacao instantanea. Re-sincroniza durante
@@ -232,6 +250,49 @@ export function PhotoUploader({
     });
   };
 
+  const handleStartEditExisting = async (foto: FotoView) => {
+    setLoadingFotoForEdit(foto.id);
+    try {
+      const res = await fetch(`/api/files/${foto.arquivoPath}`);
+      if (!res.ok) throw new Error("Falha ao carregar foto");
+      const blob = await res.blob();
+      const file = new File([blob], "foto.jpg", {
+        type: blob.type || "image/jpeg",
+      });
+      setEditingFoto({ fotoId: foto.id, file });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao abrir editor");
+    } finally {
+      setLoadingFotoForEdit(null);
+    }
+  };
+
+  const handleReplaceConfirm = async (edited: File) => {
+    if (!editingFoto) return;
+    const fotoId = editingFoto.fotoId;
+    setEditingFoto(null);
+    start(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("file", edited);
+        const res = await fetch(`/api/photo/${fotoId}/replace`, {
+          method: "POST",
+          body: fd,
+        });
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          throw new Error(data.error ?? "Falha ao salvar marcacao");
+        }
+        router.refresh();
+      } catch (err) {
+        if (isNextRedirectError(err)) throw err;
+        toast.error(err instanceof Error ? err.message : "Erro ao salvar");
+      }
+    });
+  };
+
   const handleLegendaBlur = (id: string, current: string, original: string) => {
     if (current === original) return;
     start(async () => {
@@ -278,7 +339,9 @@ export function PhotoUploader({
                     shareToken={shareToken}
                     editable={editable}
                     pending={pending}
+                    loadingEdit={loadingFotoForEdit === f.id}
                     onDelete={() => handleDelete(f.id)}
+                    onEdit={() => handleStartEditExisting(f)}
                     onLegendaBlur={(value, original) =>
                       handleLegendaBlur(f.id, value, original)
                     }
@@ -296,7 +359,9 @@ export function PhotoUploader({
                 shareToken={shareToken}
                 editable={editable}
                 pending={pending}
+                loadingEdit={loadingFotoForEdit === f.id}
                 onDelete={() => handleDelete(f.id)}
+                onEdit={() => handleStartEditExisting(f)}
                 onLegendaBlur={(value, original) =>
                   handleLegendaBlur(f.id, value, original)
                 }
@@ -388,6 +453,16 @@ export function PhotoUploader({
           onCancel={handleEditorCancel}
         />
       ) : null}
+
+      {editingFoto ? (
+        <PhotoEditor
+          key={`replace-${editingFoto.fotoId}`}
+          file={editingFoto.file}
+          onConfirm={handleReplaceConfirm}
+          onSkip={() => setEditingFoto(null)}
+          onCancel={() => setEditingFoto(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -397,7 +472,9 @@ function SortableFotoCard(props: {
   shareToken?: string;
   editable: boolean;
   pending: boolean;
+  loadingEdit: boolean;
   onDelete: () => void;
+  onEdit: () => void;
   onLegendaBlur: (value: string, original: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -433,14 +510,18 @@ function FotoCard({
   shareToken,
   editable,
   pending,
+  loadingEdit,
   onDelete,
+  onEdit,
   onLegendaBlur,
 }: {
   foto: FotoView;
   shareToken?: string;
   editable: boolean;
   pending: boolean;
+  loadingEdit: boolean;
   onDelete: () => void;
+  onEdit: () => void;
   onLegendaBlur: (value: string, original: string) => void;
 }) {
   const [legenda, setLegenda] = useState(foto.legenda ?? "");
@@ -464,15 +545,31 @@ function FotoCard({
           />
         </a>
         {editable ? (
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={pending}
-            className="absolute top-1 right-1 rounded-md bg-background/80 p-1 backdrop-blur transition hover:bg-destructive hover:text-destructive-foreground"
-            aria-label="Excluir foto"
-          >
-            <X className="size-3.5" />
-          </button>
+          <div className="absolute top-1 right-1 flex gap-1">
+            <button
+              type="button"
+              onClick={onEdit}
+              disabled={pending || loadingEdit}
+              className="rounded-md bg-background/80 p-1 backdrop-blur transition hover:bg-foreground hover:text-background disabled:opacity-50"
+              aria-label="Marcar foto"
+              title="Marcar com setas, círculos e texto"
+            >
+              {loadingEdit ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Pencil className="size-3.5" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={pending}
+              className="rounded-md bg-background/80 p-1 backdrop-blur transition hover:bg-destructive hover:text-destructive-foreground"
+              aria-label="Excluir foto"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
         ) : null}
       </div>
       {editable ? (
