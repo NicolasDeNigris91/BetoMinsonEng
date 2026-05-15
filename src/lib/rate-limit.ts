@@ -1,32 +1,27 @@
 import "server-only";
+import { sql } from "drizzle-orm";
+import { db } from "@/db";
 
 /**
- * Rate limiter em memoria do processo. Suficiente pra Railway single-instance.
- * Se um dia rodar em multi-instance, trocar por um store externo (Redis).
+ * Rate limiter backed by Postgres. Substitui o Map em memória anterior
+ * que zerava a cada deploy/restart. Atômico via INSERT ... ON CONFLICT.
  *
- * NAO usa LRU sofisticado; janelas viradas sao limpas no proximo acesso.
+ * Tabela: rate_limit_buckets(key PK, count, reset_at).
+ *
+ * Cleanup: rows expirados (reset_at < now) ficam até serem sobrescritos
+ * pelo próximo hit naquela key. Como cada chave única é uma linha, a
+ * tabela é naturalmente pequena (uma linha por IP/key ativo). Para
+ * limpeza periódica, ver scripts/cleanup-rate-limit.ts (TODO).
  */
-
-type Window = {
-  count: number;
-  resetAt: number;
-};
-
-const buckets = new Map<string, Window>();
-const CLEANUP_THRESHOLD = 10_000;
-
-function sweepExpired(now: number): void {
-  for (const [k, w] of buckets) {
-    if (w.resetAt < now) buckets.delete(k);
-  }
-}
 
 export type RateLimitResult = {
   allowed: boolean;
   retryAfterSec: number;
 };
 
-export function rateLimit({
+type BucketRow = { count: number; reset_at: Date };
+
+export async function rateLimit({
   key,
   limit,
   windowMs,
@@ -34,23 +29,46 @@ export function rateLimit({
   key: string;
   limit: number;
   windowMs: number;
-}): RateLimitResult {
-  const now = Date.now();
-  const w = buckets.get(key);
+}): Promise<RateLimitResult> {
+  try {
+    const result = await db.execute<BucketRow>(sql`
+      INSERT INTO rate_limit_buckets (key, count, reset_at)
+      VALUES (${key}, 1, NOW() + (${windowMs}::int * INTERVAL '1 millisecond'))
+      ON CONFLICT (key) DO UPDATE
+      SET
+        count = CASE
+          WHEN rate_limit_buckets.reset_at < NOW() THEN 1
+          ELSE rate_limit_buckets.count + 1
+        END,
+        reset_at = CASE
+          WHEN rate_limit_buckets.reset_at < NOW()
+            THEN NOW() + (${windowMs}::int * INTERVAL '1 millisecond')
+          ELSE rate_limit_buckets.reset_at
+        END
+      RETURNING count, reset_at
+    `);
 
-  if (!w || w.resetAt < now) {
-    if (buckets.size > CLEANUP_THRESHOLD) sweepExpired(now);
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
+    // postgres-js retorna array com result rows direto
+    const row = (result as unknown as BucketRow[])[0];
+    if (!row) {
+      // não deve acontecer com RETURNING, mas fail-open por segurança
+      return { allowed: true, retryAfterSec: 0 };
+    }
+
+    if (row.count > limit) {
+      const retryAfterMs = row.reset_at.getTime() - Date.now();
+      return {
+        allowed: false,
+        retryAfterSec: Math.max(1, Math.ceil(retryAfterMs / 1000)),
+      };
+    }
+
+    return { allowed: true, retryAfterSec: 0 };
+  } catch (err) {
+    // Fail-open: se o DB de rate-limit falhar, não trava o app.
+    // Logar pra debug; quando Sentry estiver instalado, isso vai
+    // gerar alerta.
+    console.error("[rate-limit] query failed, failing open:", err);
     return { allowed: true, retryAfterSec: 0 };
   }
-
-  if (w.count < limit) {
-    w.count += 1;
-    return { allowed: true, retryAfterSec: 0 };
-  }
-
-  return {
-    allowed: false,
-    retryAfterSec: Math.ceil((w.resetAt - now) / 1000),
-  };
 }

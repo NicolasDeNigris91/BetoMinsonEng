@@ -29,7 +29,7 @@ export async function loginAction(
   _prev: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
-  const limit = rateLimit({
+  const limit = await rateLimit({
     key: await getClientKey(),
     limit: LOGIN_MAX_ATTEMPTS,
     windowMs: LOGIN_WINDOW_MS,

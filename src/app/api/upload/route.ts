@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const limit = rateLimit({
+  const limit = await rateLimit({
     key: clientKey(req, uploadToken),
     limit: UPLOAD_RATE_LIMIT,
     windowMs: UPLOAD_RATE_WINDOW_MS,

@@ -175,6 +175,19 @@ export const shareTokens = pgTable(
   (t) => [index("share_tokens_vistoria_idx").on(t.vistoriaId)],
 );
 
+// Buckets de rate limit. Substitui o Map em memoria do processo —
+// sobrevive a deploys/restarts e funciona em multi-replica. Cada (key)
+// vira uma linha; UPSERT atomico decide reset/increment.
+export const rateLimitBuckets = pgTable(
+  "rate_limit_buckets",
+  {
+    key: varchar("key", { length: 200 }).primaryKey(),
+    count: integer("count").notNull().default(1),
+    resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [index("rate_limit_buckets_reset_idx").on(t.resetAt)],
+);
+
 export const empreendimentosRelations = relations(empreendimentos, ({ many }) => ({
   unidades: many(unidades),
 }));
