@@ -1,0 +1,1 @@
+ALTER TABLE "achados" ADD COLUMN "ordem" integer DEFAULT 0 NOT NULL;

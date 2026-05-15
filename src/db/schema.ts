@@ -108,6 +108,7 @@ export const achados = pgTable(
       { onDelete: "set null" },
     ),
     prazoEm: date("prazo_em"),
+    ordem: integer("ordem").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

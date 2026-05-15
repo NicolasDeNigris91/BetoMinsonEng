@@ -18,6 +18,7 @@ import { formatDateBR } from "@/lib/format";
 import { UploadInFlightProvider } from "@/lib/upload-in-flight";
 import { VISTORIA_STATUS_BADGE } from "@/lib/category-styles";
 import { AchadoChecklistRow } from "./achado-checklist-row";
+import { AchadosSortableList } from "./achados-sortable-list";
 import { AchadoFormDialog } from "./novo-achado-dialog";
 import { MobileUploadButton } from "./mobile-upload-button";
 import { NovoAchadoCard } from "./novo-achado-card";
@@ -100,7 +101,7 @@ export default async function VistoriaPage({
       .select()
       .from(achados)
       .where(eq(achados.vistoriaOrigemId, vid))
-      .orderBy(asc(achados.categoria), asc(achados.createdAt)),
+      .orderBy(asc(achados.ordem), asc(achados.createdAt)),
     db
       .select()
       .from(shareTokens)
@@ -138,24 +139,26 @@ export default async function VistoriaPage({
 
   // Pra cada achado originado aqui, junta TODOS os eventos da vistoria —
   // permite mostrar "achado criado" e "resolvido" como cards separados.
-  // Ordem: por achado (ordem do novosAchados), e dentro de cada achado o
-  // criado vem sempre antes de resolvido — independente de timestamps,
-  // porque resolvido sem criado nao faz sentido semantico.
+  // Ordem: por achado (ordem do novosAchados — afetada por drag-drop), e
+  // dentro de cada achado o criado vem sempre antes de resolvido —
+  // independente de timestamps, porque resolvido sem criado nao faz sentido
+  // semantico.
   const TIPO_ORDER: Record<typeof eventosNestaVistoria[number]["tipo"], number> = {
     criado: 0,
     persiste: 1,
     nota: 2,
     resolvido: 3,
   };
-  const eventosDosNovosAchados = novosAchados.flatMap((a) =>
-    eventosNestaVistoria
+  const eventosPorAchado = novosAchados.map((a) => ({
+    achado: a,
+    eventos: eventosNestaVistoria
       .filter((ev) => ev.achado != null && ev.achadoId === a.id)
       .sort((x, y) => {
         const byTipo = TIPO_ORDER[x.tipo] - TIPO_ORDER[y.tipo];
         if (byTipo !== 0) return byTipo;
         return x.createdAt.getTime() - y.createdAt.getTime();
       }),
-  );
+  }));
 
   const activeShareTokens = allActiveTokens.filter((t) => !t.permiteUpload);
   const activeUploadToken =
@@ -304,31 +307,39 @@ export default async function VistoriaPage({
             Nenhum achado registrado nesta vistoria ainda.
           </p>
         ) : (
-          <div className="space-y-2">
-            {eventosDosNovosAchados.map((ev) => (
-              <NovoAchadoCard
-                key={ev.id}
-                vistoriaId={vistoria.id}
-                achado={ev.achado!}
-                // So o evento "criado" e editavel — eventos "resolvido"
-                // retroativos sao registros historicos read-only.
-                editable={isDraft && ev.tipo === "criado"}
-                autor={vistoria.vistoriadorNome}
-                evento={{
-                  id: ev.id,
-                  tipo: ev.tipo,
-                  createdAt: ev.createdAt,
-                  notaExtra: ev.notaExtra,
-                  fotos: ev.fotos.map((f) => ({
-                    id: f.id,
-                    arquivoPath: f.arquivoPath,
-                    thumbPath: f.thumbPath,
-                    legenda: f.legenda,
-                  })),
-                }}
-              />
+          <AchadosSortableList
+            vistoriaId={vistoria.id}
+            achadoIds={eventosPorAchado.map((g) => g.achado.id)}
+            reorderable={isDraft && eventosPorAchado.length > 1}
+          >
+            {eventosPorAchado.map((g) => (
+              <div key={g.achado.id} className="space-y-2">
+                {g.eventos.map((ev) => (
+                  <NovoAchadoCard
+                    key={ev.id}
+                    vistoriaId={vistoria.id}
+                    achado={ev.achado!}
+                    // So o evento "criado" e editavel — eventos "resolvido"
+                    // retroativos sao registros historicos read-only.
+                    editable={isDraft && ev.tipo === "criado"}
+                    autor={vistoria.vistoriadorNome}
+                    evento={{
+                      id: ev.id,
+                      tipo: ev.tipo,
+                      createdAt: ev.createdAt,
+                      notaExtra: ev.notaExtra,
+                      fotos: ev.fotos.map((f) => ({
+                        id: f.id,
+                        arquivoPath: f.arquivoPath,
+                        thumbPath: f.thumbPath,
+                        legenda: f.legenda,
+                      })),
+                    }}
+                  />
+                ))}
+              </div>
             ))}
-          </div>
+          </AchadosSortableList>
         )}
       </section>
 

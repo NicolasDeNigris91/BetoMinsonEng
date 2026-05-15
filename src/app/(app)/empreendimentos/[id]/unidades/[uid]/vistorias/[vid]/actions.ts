@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { achadoEventos, achados, fotos, vistorias, categoriaEnum } from "@/db/schema";
@@ -137,6 +137,17 @@ export async function createAchadoAction(
   }
 
   await db.transaction(async (tx) => {
+    // Proximo ordem = max(ordem) + 1 dos achados criados nesta mesma
+    // vistoria. Garante que cada novo achado vai pro final da lista, sem
+    // colidir com reordenacoes ja salvas.
+    const [maxRow] = await tx
+      .select({
+        max: sql<number>`coalesce(max(${achados.ordem}), 0)::int`,
+      })
+      .from(achados)
+      .where(eq(achados.vistoriaOrigemId, vistoriaId));
+    const proximoOrdem = Number(maxRow?.max ?? 0) + 1;
+
     const [achado] = await tx
       .insert(achados)
       .values({
@@ -145,6 +156,7 @@ export async function createAchadoAction(
         local: parsed.data.local || null,
         descricao: parsed.data.descricao,
         prazoEm: parsed.data.prazoEm || null,
+        ordem: proximoOrdem,
         status: "aberto",
         vistoriaOrigemId: vistoriaId,
       })
@@ -244,6 +256,53 @@ export async function deleteAchadoAction(
 
   await db.delete(achados).where(eq(achados.id, achadoId));
   await deleteFotosFromStorage(fotosToCleanup);
+
+  revalidatePath(vistoriaPath(ctx));
+}
+
+/**
+ * Reordena achados criados nesta vistoria. Recebe a nova lista de ids na
+ * ordem desejada e atribui ordem = 1..N. Valida que todos os ids pertencem
+ * a vistoria (vistoriaOrigemId) — protege contra reordenar achado de outra
+ * vistoria via id forjado.
+ */
+export async function reorderAchadosAction(
+  vistoriaId: string,
+  achadoIdsInOrder: string[],
+): Promise<void> {
+  await requireMutation();
+  const ctx = await vistoriaContext(vistoriaId);
+  assertEditable(ctx);
+
+  if (achadoIdsInOrder.length === 0) return;
+
+  await db.transaction(async (tx) => {
+    const rows = await tx
+      .select({ id: achados.id, vistoriaOrigemId: achados.vistoriaOrigemId })
+      .from(achados)
+      .where(inArray(achados.id, achadoIdsInOrder));
+
+    const validIds = new Set(
+      rows
+        .filter((r) => r.vistoriaOrigemId === vistoriaId)
+        .map((r) => r.id),
+    );
+
+    for (const id of achadoIdsInOrder) {
+      if (!validIds.has(id)) {
+        throw new Error("Achado nao pertence a esta vistoria.");
+      }
+    }
+
+    // Atualiza um por um. Lista e curta o suficiente (<50) pra que N queries
+    // sejam aceitaveis e mantem o codigo simples.
+    for (let i = 0; i < achadoIdsInOrder.length; i++) {
+      await tx
+        .update(achados)
+        .set({ ordem: i + 1 })
+        .where(eq(achados.id, achadoIdsInOrder[i]));
+    }
+  });
 
   revalidatePath(vistoriaPath(ctx));
 }
