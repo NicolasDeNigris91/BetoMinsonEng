@@ -538,7 +538,7 @@ function FotoCard({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={fileUrl(foto.thumbPath, shareToken)}
-            alt={foto.legenda ?? ""}
+            alt={foto.legenda ?? "Foto anexada ao achado"}
             loading="lazy"
             decoding="async"
             className="h-full w-full object-cover"

@@ -271,7 +271,7 @@ export default async function SharePage({
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
                                     src={`/api/files/${f.thumbPath}?token=${encodeURIComponent(token)}`}
-                                    alt={f.legenda ?? ""}
+                                    alt={f.legenda ?? "Foto anexada ao achado"}
                                     loading="lazy"
                                     decoding="async"
                                     className="aspect-square w-full rounded-md border object-cover"

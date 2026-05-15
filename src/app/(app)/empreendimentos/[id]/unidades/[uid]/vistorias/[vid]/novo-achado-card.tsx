@@ -175,7 +175,12 @@ export function NovoAchadoCard({
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={fileUrl(f.thumbPath, shareToken)}
-                        alt={f.legenda ?? ""}
+                        alt={
+                          f.legenda ??
+                          `Foto do achado em ${CATEGORIA_LABELS[achado.categoria]}${
+                            achado.local ? ` — ${achado.local}` : ""
+                          }`
+                        }
                         loading="lazy"
                         decoding="async"
                         className="aspect-square w-full rounded-md border object-cover"
