@@ -38,7 +38,7 @@ export type PdfData = {
 
 const BRAND_TEXT = "DiMinson Engenharia";
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

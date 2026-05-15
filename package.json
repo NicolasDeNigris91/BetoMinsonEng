@@ -8,7 +8,9 @@
     "start": "next start -H 0.0.0.0",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm lint && pnpm typecheck && pnpm build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:migrate-kit": "drizzle-kit migrate",
@@ -52,7 +54,8 @@
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.6"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
