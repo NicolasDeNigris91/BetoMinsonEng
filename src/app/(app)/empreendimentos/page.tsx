@@ -72,6 +72,7 @@ export default async function EmpreendimentosPage({
   // DB exigiria joins complexos com subqueries. Em memoria fica direto.
   const [
     todosEmpreendimentos,
+    unidadesPorEmp,
     unidadesRows,
     abertosRows,
     resolvidosRows,
@@ -87,6 +88,17 @@ export default async function EmpreendimentosPage({
       .select()
       .from(empreendimentos)
       .orderBy(desc(empreendimentos.createdAt)),
+    // Lista de (id, nome) de cada unidade por empreendimento — alimenta o
+    // dropdown "+ Vistoria" no card. Ordenado por ordem manual e nome.
+    db
+      .select({
+        empreendimentoId: unidades.empreendimentoId,
+        id: unidades.id,
+        nome: unidades.nome,
+        ordem: unidades.ordem,
+      })
+      .from(unidades)
+      .orderBy(unidades.empreendimentoId, unidades.ordem, unidades.nome),
     db
       .select({ empreendimentoId: unidades.empreendimentoId, n: count() })
       .from(unidades)
@@ -189,6 +201,12 @@ export default async function EmpreendimentosPage({
     existing[row.categoria] = Number(row.n);
     chipsPor.set(row.empreendimentoId, existing);
   }
+  const unidadesListPor = new Map<string, { id: string; nome: string }[]>();
+  for (const row of unidadesPorEmp) {
+    const arr = unidadesListPor.get(row.empreendimentoId) ?? [];
+    arr.push({ id: row.id, nome: row.nome });
+    unidadesListPor.set(row.empreendimentoId, arr);
+  }
 
   // Constroi view models — um por empreendimento da base inteira.
   let views: EmpreendimentoCardView[] = todosEmpreendimentos.map((emp) => ({
@@ -205,6 +223,7 @@ export default async function EmpreendimentosPage({
       ultimaVistoriaPor.get(emp.id),
       ultimoEventoPor.get(emp.id),
     ),
+    unidades: unidadesListPor.get(emp.id) ?? [],
   }));
 
   // Filtro de texto: nome ou cliente. Lowercase comparison sem acento

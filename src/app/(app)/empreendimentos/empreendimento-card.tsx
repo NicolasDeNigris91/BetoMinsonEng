@@ -2,6 +2,10 @@ import Link from "next/link";
 import { CATEGORIA_LABELS, type Categoria } from "@/db/schema";
 import { CATEGORIA_DOT } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
+import {
+  EmpreendimentoCardActions,
+  type CardUnidade,
+} from "./empreendimento-card-actions";
 
 export type EmpreendimentoCardView = {
   id: string;
@@ -16,6 +20,8 @@ export type EmpreendimentoCardView = {
   abertosPorCategoria: Record<Categoria, number>;
   /** Data ISO da ultima atividade (string ISO timestamp). */
   ultimaAtividadeISO: string | null;
+  /** Unidades pra alimentar o dropdown de "+ Vistoria" no card. */
+  unidades: CardUnidade[];
 };
 
 const ORDEM_CATEGORIA: Categoria[] = [
@@ -137,65 +143,81 @@ export function EmpreendimentoCard({ view }: Props) {
   const status = evaluateStatus(view);
   const isEmpty = status.kind === "vazio" && view.nUnidades === 0;
 
+  // Card e um <div> (nao Link) pra permitir botoes interativos no rodape.
+  // Um Link absoluto cobre o conteudo principal — clique em qualquer lugar
+  // do conteudo navega, mas os botoes do rodape sao siblings z-elevados.
   return (
-    <Link
-      href={`/empreendimentos/${view.id}`}
-      className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    <div
+      className={cn(
+        "relative h-full overflow-hidden rounded-xl border bg-card transition-all hover:-translate-y-0.5 hover:shadow-md focus-within:ring-2 focus-within:ring-ring",
+        isEmpty && "border-dashed bg-card/70",
+      )}
     >
       <div
+        aria-hidden
+        className={cn("absolute top-0 bottom-0 left-0 w-1 z-10", status.stripeClass)}
+      />
+
+      {/* Link cobre a area principal sem englobar os botoes. */}
+      <Link
+        href={`/empreendimentos/${view.id}`}
+        className="absolute inset-x-0 top-0 bottom-[44px] z-0 focus:outline-none"
+        aria-label={`Abrir ${view.nome}`}
+      />
+
+      <span
         className={cn(
-          "relative h-full overflow-hidden rounded-xl border bg-card transition-all hover:-translate-y-0.5 hover:shadow-md",
-          isEmpty && "border-dashed bg-card/70",
+          "absolute top-3 right-3 z-10 rounded-sm border px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-[0.14em] uppercase pointer-events-none",
+          status.badgeClass,
         )}
       >
-        <div
-          aria-hidden
-          className={cn("absolute top-0 bottom-0 left-0 w-1", status.stripeClass)}
-        />
+        {status.badgeLabel}
+      </span>
 
-        <span
-          className={cn(
-            "absolute top-3 right-3 rounded-sm border px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-[0.14em] uppercase",
-            status.badgeClass,
-          )}
-        >
-          {status.badgeLabel}
-        </span>
-
-        <div className="space-y-1 px-5 pt-4 pb-2 pr-24">
-          <p className="text-base font-bold tracking-tight">{view.nome}</p>
-          {view.cliente ? (
-            <p className="text-sm text-muted-foreground">{view.cliente}</p>
-          ) : null}
-          {view.endereco ? (
-            <p className="line-clamp-1 text-xs text-muted-foreground/70">
-              {view.endereco}
-            </p>
-          ) : null}
-        </div>
-
-        {isEmpty ? (
-          <EmptyBody />
-        ) : (
-          <>
-            <CategoriaChips
-              abertosPorCategoria={view.abertosPorCategoria}
-              hasAchados={view.nAbertos + view.nResolvidos > 0}
-            />
-
-            <ActivityRow
-              ultimaAtividadeISO={view.ultimaAtividadeISO}
-              nUnidades={view.nUnidades}
-              stale={status.kind === "inativo"}
-            />
-
-            {status.kind === "inativo" ? <InactiveWarning /> : null}
-
-            <Footer view={view} />
-          </>
-        )}
+      <div className="relative z-[1] space-y-1 px-5 pt-4 pb-2 pr-24 pointer-events-none">
+        <p className="text-base font-bold tracking-tight">{view.nome}</p>
+        {view.cliente ? (
+          <p className="text-sm text-muted-foreground">{view.cliente}</p>
+        ) : null}
+        {view.endereco ? (
+          <p className="line-clamp-1 text-xs text-muted-foreground/70">
+            {view.endereco}
+          </p>
+        ) : null}
       </div>
-    </Link>
+
+      {isEmpty ? (
+        <div className="relative z-[1] pointer-events-none">
+          <EmptyBody />
+        </div>
+      ) : (
+        <div className="relative z-[1] pointer-events-none">
+          <CategoriaChips
+            abertosPorCategoria={view.abertosPorCategoria}
+            hasAchados={view.nAbertos + view.nResolvidos > 0}
+          />
+
+          <ActivityRow
+            ultimaAtividadeISO={view.ultimaAtividadeISO}
+            nUnidades={view.nUnidades}
+            stale={status.kind === "inativo"}
+          />
+
+          {status.kind === "inativo" ? <InactiveWarning /> : null}
+
+          <Footer view={view} />
+        </div>
+      )}
+
+      {/* Acoes ficam acima do Link absoluto (z-10) com pointer-events. */}
+      <div className="relative z-10">
+        <EmpreendimentoCardActions
+          empreendimentoId={view.id}
+          nUnidades={view.nUnidades}
+          unidades={view.unidades}
+        />
+      </div>
+    </div>
   );
 }
 
