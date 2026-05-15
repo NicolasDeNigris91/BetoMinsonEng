@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, desc, and, count, asc, sql } from "drizzle-orm";
-import { CheckCircle2, ClipboardList, History, Pencil, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, ClipboardList, FileText, History, Pencil, Plus, Trash2 } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { EmptyState } from "@/components/empty-state";
 import { StatCard } from "@/components/stat-card";
@@ -500,18 +500,26 @@ export default async function UnidadeDetailPage({
               const href = `/empreendimentos/${id}/unidades/${unidade.id}/vistorias/${v.id}`;
 
               return (
-                <Link
+                <div
                   key={v.id}
-                  href={href}
-                  className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="relative overflow-hidden rounded-lg border bg-card transition-colors hover:bg-accent/40 focus-within:ring-2 focus-within:ring-ring"
                 >
-                  <div className="relative overflow-hidden rounded-lg border bg-card transition-colors hover:bg-accent/40">
-                    <div
-                      aria-hidden
-                      className={`absolute top-0 bottom-0 left-0 w-[3px] ${VISTORIA_STATUS_STRIPE[v.status]}`}
-                    />
+                  <div
+                    aria-hidden
+                    className={`absolute top-0 bottom-0 left-0 z-10 w-[3px] ${VISTORIA_STATUS_STRIPE[v.status]}`}
+                  />
 
-                    <div className="flex items-center justify-between gap-3 px-5 py-4 pr-32">
+                  {/* Link absoluto cobre o card todo, mas fica abaixo dos
+                      botoes (z-0). Conteudo interno tem pointer-events-none
+                      pra nao bloquear o clique do link. */}
+                  <Link
+                    href={href}
+                    className="absolute inset-0 z-0 rounded-lg focus:outline-none"
+                    aria-label={`Abrir vistoria de ${formatDateBR(v.data)}`}
+                  />
+
+                  <div className="pointer-events-none relative z-[1]">
+                    <div className="flex items-center justify-between gap-3 px-5 py-4 pr-40">
                       <div className="space-y-0.5">
                         <p className="text-base font-semibold text-foreground">
                           Vistoria de{" "}
@@ -572,14 +580,28 @@ export default async function UnidadeDetailPage({
                         ))}
                       </ul>
                     ) : null}
+                  </div>
 
+                  {/* Acoes do canto superior direito — sibling do Link, z-10 */}
+                  <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+                    <Link
+                      href={`/api/pdf/${v.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-1 font-mono text-[9px] font-semibold tracking-[0.08em] uppercase text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      aria-label={`Baixar PDF da vistoria de ${formatDateBR(v.data)}`}
+                      title="Baixar PDF desta vistoria"
+                    >
+                      <FileText className="size-3" />
+                      PDF
+                    </Link>
                     <span
-                      className={`absolute top-4 right-5 rounded-sm border px-1.5 py-1 font-mono text-[9px] font-bold tracking-[0.12em] uppercase ${VISTORIA_STATUS_BADGE[v.status].className}`}
+                      className={`rounded-sm border px-1.5 py-1 font-mono text-[9px] font-bold tracking-[0.12em] uppercase ${VISTORIA_STATUS_BADGE[v.status].className}`}
                     >
                       {VISTORIA_STATUS_BADGE[v.status].label}
                     </span>
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>
