@@ -215,14 +215,14 @@ function IconBubble({
 }
 
 /**
- * Formata uma data como tempo relativo curto: "agora", "há 5min",
- * "há 2h", "ontem", "há 3d", "há 2 sem", "há N meses". Server-side
- * pra evitar discrepancia hidratacao — o Painel ja eh dinamico, entao
- * o snapshot do momento do render serve bem.
+ * Formata uma data ISO como tempo relativo curto: "agora", "há 5min",
+ * "há 2h", "ontem", "há 3d", "há 2 sem", "há N meses". Recebe string
+ * porque o feed passa por unstable_cache (que serializa Date pra string).
  */
-function relativeTime(date: Date): string {
-  const now = Date.now();
-  const diffMs = now - date.getTime();
+function relativeTime(dateISO: string): string {
+  const t = Date.parse(dateISO);
+  if (Number.isNaN(t)) return "";
+  const diffMs = Date.now() - t;
   const min = Math.floor(diffMs / 60000);
   if (min < 1) return "agora";
   if (min < 60) return `há ${min}min`;
@@ -232,7 +232,7 @@ function relativeTime(date: Date): string {
   if (d === 1) return "ontem";
   if (d < 7) return `há ${d}d`;
   const w = Math.floor(d / 7);
-  if (w < 4) return `há ${w} ${w === 1 ? "sem" : "sem"}`;
+  if (w < 4) return `há ${w} sem`;
   const m = Math.floor(d / 30);
   return `há ${m} ${m === 1 ? "mês" : "meses"}`;
 }

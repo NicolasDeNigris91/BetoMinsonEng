@@ -33,11 +33,18 @@ export type AchadoSemPrazo = {
   unidadeNome: string;
 };
 
+/**
+ * Atividade carrega timestamps como string ISO em vez de Date — quando o
+ * resultado passa por unstable_cache, JSON.stringify converte Date pra
+ * string mas a leitura nao reverte automaticamente, e qualquer .getTime()
+ * no consumidor quebra com "a.getTime is not a function". Padronizar pra
+ * string evita a confusao; o consumidor faz parseISO se precisar de Date.
+ */
 export type DashboardActivity =
   | {
       kind: "evento";
       tipo: EventoTipo;
-      at: Date;
+      at: string;
       categoria: Categoria;
       local: string | null;
       empreendimentoId: string;
@@ -49,7 +56,7 @@ export type DashboardActivity =
     }
   | {
       kind: "vistoria-criada";
-      at: Date;
+      at: string;
       empreendimentoId: string;
       empreendimentoNome: string;
       unidadeId: string;
@@ -60,7 +67,7 @@ export type DashboardActivity =
     }
   | {
       kind: "vistoria-finalizada";
-      at: Date;
+      at: string;
       empreendimentoId: string;
       empreendimentoNome: string;
       unidadeId: string;
@@ -350,7 +357,7 @@ async function fetchAtividadeRecente(): Promise<DashboardActivity[]> {
     items.push({
       kind: "evento",
       tipo: ev.tipo,
-      at: ev.createdAt,
+      at: ev.createdAt.toISOString(),
       categoria: ev.categoria,
       local: ev.local,
       empreendimentoId: ev.empreendimentoId,
@@ -365,7 +372,7 @@ async function fetchAtividadeRecente(): Promise<DashboardActivity[]> {
   for (const v of vistoriasCriadas) {
     items.push({
       kind: "vistoria-criada",
-      at: v.createdAt,
+      at: v.createdAt.toISOString(),
       empreendimentoId: v.empreendimentoId,
       empreendimentoNome: v.empreendimentoNome,
       unidadeId: v.unidadeId,
@@ -380,7 +387,7 @@ async function fetchAtividadeRecente(): Promise<DashboardActivity[]> {
     if (!v.finalizadaEm) continue;
     items.push({
       kind: "vistoria-finalizada",
-      at: v.finalizadaEm,
+      at: v.finalizadaEm.toISOString(),
       empreendimentoId: v.empreendimentoId,
       empreendimentoNome: v.empreendimentoNome,
       unidadeId: v.unidadeId,
@@ -390,7 +397,9 @@ async function fetchAtividadeRecente(): Promise<DashboardActivity[]> {
     });
   }
 
-  items.sort((a, b) => b.at.getTime() - a.at.getTime());
+  // Comparacao de string ISO funciona porque o formato e lexicograficamente
+  // ordenavel — equivalente a comparar por Date.
+  items.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
   return items.slice(0, ATIVIDADE_LIMIT);
 }
 
