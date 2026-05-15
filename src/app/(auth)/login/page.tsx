@@ -18,7 +18,7 @@ export default async function LoginPage({
   const from = params.from ?? "/";
 
   return (
-    <div className="bp-grid-strong relative flex flex-1 items-center justify-center overflow-hidden p-6">
+    <div className="bp-grid-strong relative flex min-h-dvh items-center justify-center overflow-hidden p-6">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-3 truncate text-center font-mono text-[10px] tracking-[0.4em] text-foreground/15 uppercase"
