@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, or } from "drizzle-orm";
 import { db } from "@/db";
-import {
-  achadoEventos,
-  achados,
-  fotos,
-  shareTokens,
-} from "@/db/schema";
+import { achadoEventos, fotos, shareTokens } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
 import { fileExists, readFileBuffer } from "@/lib/storage";
 
@@ -28,46 +23,26 @@ async function isAccessibleViaToken(
   relativePath: string,
   token: string,
 ): Promise<boolean> {
+  // Token só libera fotos cujo evento pertence à própria vistoria do token.
+  // Match em arquivoPath OU thumbPath numa única query.
   const [row] = await db
-    .select({ vistoriaId: shareTokens.vistoriaId })
+    .select({ ownerVistoriaId: achadoEventos.vistoriaId })
     .from(shareTokens)
+    .innerJoin(fotos, or(
+      eq(fotos.arquivoPath, relativePath),
+      eq(fotos.thumbPath, relativePath),
+    ))
+    .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
     .where(
       and(
         eq(shareTokens.token, token),
         gt(shareTokens.expiraEm, new Date()),
+        eq(shareTokens.vistoriaId, achadoEventos.vistoriaId),
       ),
     )
     .limit(1);
 
-  if (!row) return false;
-
-  const [byArquivo, byThumb, byAchadoOrigem] = await Promise.all([
-    db
-      .select({ vistoriaId: achadoEventos.vistoriaId })
-      .from(fotos)
-      .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
-      .where(eq(fotos.arquivoPath, relativePath))
-      .limit(1),
-    db
-      .select({ vistoriaId: achadoEventos.vistoriaId })
-      .from(fotos)
-      .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
-      .where(eq(fotos.thumbPath, relativePath))
-      .limit(1),
-    db
-      .select({ vistoriaOrigemId: achados.vistoriaOrigemId })
-      .from(fotos)
-      .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
-      .innerJoin(achados, eq(achados.id, achadoEventos.achadoId))
-      .where(eq(fotos.arquivoPath, relativePath))
-      .limit(1),
-  ]);
-
-  if (byArquivo[0]?.vistoriaId === row.vistoriaId) return true;
-  if (byThumb[0]?.vistoriaId === row.vistoriaId) return true;
-  if (byAchadoOrigem[0]?.vistoriaOrigemId === row.vistoriaId) return true;
-
-  return false;
+  return !!row;
 }
 
 export async function GET(
