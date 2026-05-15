@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { CheckCheck, FileDown, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { useUploadInFlight } from "@/lib/upload-in-flight";
 import { toast } from "sonner";
 import {
   finalizeVistoriaAction,
@@ -19,6 +20,14 @@ export function VistoriaActionsBar({
   status: "rascunho" | "finalizada";
 }) {
   const [pending, start] = useTransition();
+  // Bloqueia Finalizar/Excluir enquanto há upload em voo — caso contrário,
+  // a vistoria fecha (status=finalizada) e a foto que ainda está sendo
+  // processada pelo Sharp acaba rejeitada com 409 ou salva órfã.
+  const tracker = useUploadInFlight();
+  const uploading = (tracker?.count ?? 0) > 0;
+  const blockedReason = uploading
+    ? "Aguarde os uploads de fotos terminarem"
+    : undefined;
 
   const finalize = () =>
     new Promise<void>((resolve) => {
@@ -85,7 +94,11 @@ export function VistoriaActionsBar({
             confirmLabel="Finalizar"
             onConfirm={finalize}
             trigger={
-              <Button size="sm" disabled={pending}>
+              <Button
+                size="sm"
+                disabled={pending || uploading}
+                title={blockedReason}
+              >
                 <CheckCheck className="mr-1.5 size-4" />
                 Finalizar vistoria
               </Button>
@@ -101,8 +114,9 @@ export function VistoriaActionsBar({
               <Button
                 size="sm"
                 variant="ghost"
-                disabled={pending}
+                disabled={pending || uploading}
                 aria-label="Excluir vistoria"
+                title={blockedReason}
               >
                 <Trash2 className="size-4" />
               </Button>

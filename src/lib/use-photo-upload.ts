@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useUploadInFlight } from "./upload-in-flight";
 
 const CONCURRENCY = 3;
 // Cada attempt tem 60s — coloca um teto pra requests presas em rede ruim
@@ -42,6 +43,13 @@ export function usePhotoUpload({
 }: UploadOptions) {
   const [state, setState] = useState<State>({ total: 0, done: 0 });
   const abortRef = useRef<AbortController | null>(null);
+  const tracker = useUploadInFlight();
+  // Ref pro tracker pra evitar que mudanças do contexto (count++) invalidem
+  // o useCallback de upload e re-renderizem componentes no caminho crítico.
+  const trackerRef = useRef(tracker);
+  useEffect(() => {
+    trackerRef.current = tracker;
+  }, [tracker]);
 
   useEffect(() => {
     return () => abortRef.current?.abort();
@@ -61,6 +69,7 @@ export function usePhotoUpload({
         : "/api/upload";
 
       setState({ total: list.length, done: 0 });
+      trackerRef.current?.begin();
       const toastId = toast.loading(
         list.length === 1
           ? "Enviando foto..."
@@ -181,6 +190,7 @@ export function usePhotoUpload({
         }
       } finally {
         setState({ total: 0, done: 0 });
+        trackerRef.current?.end();
       }
 
       return { succeeded, failed };

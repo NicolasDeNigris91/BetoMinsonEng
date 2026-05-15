@@ -16,6 +16,7 @@ import {
 } from "@/db/schema";
 import { env } from "@/lib/env";
 import { formatDateBR } from "@/lib/format";
+import { UploadInFlightProvider } from "@/lib/upload-in-flight";
 import { VISTORIA_STATUS_BADGE } from "@/lib/category-styles";
 import { AchadoChecklistRow } from "./achado-checklist-row";
 import { AchadoFormDialog } from "./novo-achado-dialog";
@@ -124,6 +125,7 @@ export default async function VistoriaPage({
   const isDraft = vistoria.status === "rascunho";
 
   return (
+    <UploadInFlightProvider>
     <div className="space-y-6">
       <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
         <Link href="/empreendimentos" className="hover:text-foreground">
@@ -306,5 +308,6 @@ export default async function VistoriaPage({
         }))}
       />
     </div>
+    </UploadInFlightProvider>
   );
 }
