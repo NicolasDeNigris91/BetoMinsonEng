@@ -1,7 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth";
+import { CommandPalette } from "@/components/command-palette";
 import { LogoutButton } from "./logout-button";
+import { SearchTrigger } from "./search-trigger";
 
 export default async function AppLayout({
   children,
@@ -28,7 +30,8 @@ export default async function AppLayout({
             </span>
             <span className="sr-only">DiMinson Engenharia — Vistorias</span>
           </Link>
-          <nav className="flex items-center gap-4 text-sm">
+          <nav className="flex items-center gap-3 text-sm">
+            <SearchTrigger />
             <Link
               href="/empreendimentos"
               className="text-muted-foreground hover:text-brand transition-colors"
@@ -46,6 +49,7 @@ export default async function AppLayout({
       <main className="flex-1">
         <div className="mx-auto max-w-6xl px-4 py-8">{children}</div>
       </main>
+      <CommandPalette />
     </div>
   );
 }
