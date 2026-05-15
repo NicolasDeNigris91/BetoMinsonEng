@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { eq, and, ne, asc, gt, desc } from "drizzle-orm";
+import { eq, and, ne, asc, gt, desc, count, sql } from "drizzle-orm";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -63,6 +63,7 @@ export default async function VistoriaPage({
     eventosNestaVistoria,
     novosAchados,
     allActiveTokens,
+    templatesFrequentes,
   ] = await Promise.all([
     db
       .select()
@@ -109,6 +110,23 @@ export default async function VistoriaPage({
         ),
       )
       .orderBy(desc(shareTokens.criadoEm)),
+    // Templates de achados frequentes — combinacoes (categoria, local,
+    // descricao) que se repetem 2+ vezes no empreendimento. Alimenta o
+    // painel "Templates frequentes" do dialog de novo achado.
+    db
+      .select({
+        categoria: achados.categoria,
+        local: achados.local,
+        descricao: achados.descricao,
+        uso: count(),
+      })
+      .from(achados)
+      .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+      .where(eq(unidades.empreendimentoId, id))
+      .groupBy(achados.categoria, achados.local, achados.descricao)
+      .having(sql`count(*) >= 2`)
+      .orderBy(desc(sql`count(*)`))
+      .limit(6),
   ]);
 
   if (!vistoria || !unidade || !emp) notFound();
@@ -246,7 +264,15 @@ export default async function VistoriaPage({
             </p>
           </div>
           {isDraft ? (
-            <AchadoFormDialog vistoriaId={vistoria.id} />
+            <AchadoFormDialog
+              vistoriaId={vistoria.id}
+              templates={templatesFrequentes.map((t) => ({
+                categoria: t.categoria,
+                local: t.local,
+                descricao: t.descricao,
+                uso: Number(t.uso),
+              }))}
+            />
           ) : null}
         </div>
 

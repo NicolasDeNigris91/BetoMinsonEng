@@ -124,6 +124,7 @@ export async function GET(
           evento: {
             id: ev.id,
             tipo: ev.tipo,
+            createdAtBR: formatDateTimeBR(ev.createdAt),
             notaExtra: ev.notaExtra,
             fotos: fotosWithData,
           },
@@ -154,6 +155,17 @@ export async function GET(
     }
   }
 
+  // Stats da vistoria — contagens por tipo de evento. Mesma logica usada no
+  // stat-row do PDF: total de achados tocados, abertos (criado+persiste),
+  // resolvidos (resolvido).
+  const stats = {
+    achados: rows.length,
+    abertos: rows.filter(
+      (r) => r.evento.tipo === "criado" || r.evento.tipo === "persiste",
+    ).length,
+    resolvidos: rows.filter((r) => r.evento.tipo === "resolvido").length,
+  };
+
   const data: PdfData = {
     empreendimentoNome: emp.nome,
     empreendimentoCliente: emp.cliente,
@@ -163,6 +175,7 @@ export async function GET(
     vistoriadorNome: vistoria.vistoriadorNome,
     observacoesGerais: vistoria.observacoesGerais,
     rows,
+    stats,
     finalizadaEmBR: vistoria.finalizadaEm
       ? formatDateTimeBR(vistoria.finalizadaEm)
       : null,

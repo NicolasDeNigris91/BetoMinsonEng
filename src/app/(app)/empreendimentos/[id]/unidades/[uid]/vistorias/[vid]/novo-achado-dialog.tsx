@@ -26,6 +26,7 @@ import {
   CATEGORIA_LABELS,
   categoriaEnum,
   type Achado,
+  type Categoria,
 } from "@/db/schema";
 import { CATEGORIA_DOT } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
@@ -35,15 +36,38 @@ import {
   type NovoAchadoState,
 } from "./actions";
 
+export type AchadoTemplate = {
+  categoria: Categoria;
+  local: string | null;
+  descricao: string;
+  uso: number;
+};
+
 type Props = {
   vistoriaId: string;
   achado?: Achado;
   trigger?: React.ReactElement;
+  /** Templates frequentes — exibe painel acima do form. Omitir/array vazio
+   *  esconde o painel. Ignorado em modo de edicao. */
+  templates?: AchadoTemplate[];
 };
 
-export function AchadoFormDialog({ vistoriaId, achado, trigger }: Props) {
+export function AchadoFormDialog({
+  vistoriaId,
+  achado,
+  trigger,
+  templates = [],
+}: Props) {
   const [open, setOpen] = useState(false);
   const isEdit = Boolean(achado);
+
+  // Form controlado pra permitir pre-fill via clique em template.
+  const [categoria, setCategoria] = useState<Categoria>(
+    achado?.categoria ?? "ELE",
+  );
+  const [local, setLocal] = useState<string>(achado?.local ?? "");
+  const [descricao, setDescricao] = useState<string>(achado?.descricao ?? "");
+  const [showAllTemplates, setShowAllTemplates] = useState(false);
 
   const action = isEdit
     ? updateAchadoAction.bind(null, achado!.id, vistoriaId)
@@ -54,11 +78,33 @@ export function AchadoFormDialog({ vistoriaId, achado, trigger }: Props) {
       const result = await action(prev, formData);
       if (!result.fieldErrors && !result.error) {
         setOpen(false);
+        // Reset pra proxima abertura (so importa em modo "novo").
+        if (!isEdit) {
+          setCategoria("ELE");
+          setLocal("");
+          setDescricao("");
+        }
       }
       return result;
     },
     {},
   );
+
+  const applyTemplate = (t: AchadoTemplate) => {
+    setCategoria(t.categoria);
+    setLocal(t.local ?? "");
+    setDescricao(t.descricao);
+  };
+
+  const visibleTemplates =
+    !isEdit && templates.length > 0
+      ? showAllTemplates
+        ? templates
+        : templates.slice(0, 4)
+      : [];
+
+  const hasMoreTemplates =
+    !isEdit && !showAllTemplates && templates.length > 4;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -83,12 +129,72 @@ export function AchadoFormDialog({ vistoriaId, achado, trigger }: Props) {
               : "Categoria, local e descrição do que foi encontrado."}
           </DialogDescription>
         </DialogHeader>
+
+        {visibleTemplates.length > 0 ? (
+          <div className="space-y-2">
+            <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground">
+              Templates frequentes
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {visibleTemplates.map((t, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => applyTemplate(t)}
+                  disabled={pending}
+                  className="group flex items-start gap-2 rounded-md border bg-card p-2 text-left transition-colors hover:border-brand/40 hover:bg-brand/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "mt-1 inline-block size-2 shrink-0 rounded-full",
+                      CATEGORIA_DOT[t.categoria],
+                    )}
+                  />
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    {t.local ? (
+                      <p className="truncate text-xs font-medium">{t.local}</p>
+                    ) : (
+                      <p className="truncate text-xs font-medium text-muted-foreground">
+                        {CATEGORIA_LABELS[t.categoria]}
+                      </p>
+                    )}
+                    <p className="line-clamp-2 text-[11px] text-muted-foreground">
+                      {t.descricao}
+                    </p>
+                    <p className="font-mono text-[9px] tracking-[0.06em] text-muted-foreground/70">
+                      usado {String(t.uso).padStart(2, "0")}×
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {hasMoreTemplates ? (
+              <button
+                type="button"
+                onClick={() => setShowAllTemplates(true)}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Ver mais {templates.length - 4} templates →
+              </button>
+            ) : null}
+            <div className="flex items-center gap-3 pt-1">
+              <div className="h-px flex-1 bg-border" />
+              <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-muted-foreground/70">
+                ou criar manual
+              </span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+          </div>
+        ) : null}
+
         <form action={formAction} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="categoria">Matéria*</Label>
             <Select
               name="categoria"
-              defaultValue={achado?.categoria ?? "ELE"}
+              value={categoria}
+              onValueChange={(v) => setCategoria(v as Categoria)}
               disabled={pending}
             >
               <SelectTrigger id="categoria">
@@ -124,7 +230,8 @@ export function AchadoFormDialog({ vistoriaId, achado, trigger }: Props) {
             <Input
               id="local"
               name="local"
-              defaultValue={achado?.local ?? ""}
+              value={local}
+              onChange={(e) => setLocal(e.target.value)}
               placeholder="Ex: Térreo - sala de estar"
               disabled={pending}
             />
@@ -139,7 +246,8 @@ export function AchadoFormDialog({ vistoriaId, achado, trigger }: Props) {
               id="descricao"
               name="descricao"
               required
-              defaultValue={achado?.descricao ?? ""}
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
               rows={5}
               placeholder="O que foi encontrado, o que precisa ser feito..."
               disabled={pending}
