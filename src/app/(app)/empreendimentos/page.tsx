@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { desc, eq, count, sql } from "drizzle-orm";
+import { and, desc, eq, count, sql, inArray } from "drizzle-orm";
 import { Plus, Building2 } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
+import { Pagination } from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
 import {
@@ -19,37 +20,71 @@ import { EmpreendimentoFormDialog } from "./empreendimento-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function EmpreendimentosPage() {
-  const [lista, unidadesRows, abertosRows, ultimasRows] = await Promise.all([
+const PAGE_SIZE = 12;
+
+export default async function EmpreendimentosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const sp = await searchParams;
+  const pageParam = Number(sp.page ?? "1");
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+  const offset = (page - 1) * PAGE_SIZE;
+
+  // 1) Conta total + 2) busca a pagina atual em paralelo. As queries de
+  // agregacao (unidades/abertos/ultimas) so rodam sobre os ids retornados
+  // pra evitar contar agregados de empreendimentos fora da pagina visivel.
+  const [[totalRow], lista] = await Promise.all([
+    db.select({ n: count() }).from(empreendimentos),
     db
       .select()
       .from(empreendimentos)
-      .orderBy(desc(empreendimentos.createdAt)),
-    db
-      .select({
-        empreendimentoId: unidades.empreendimentoId,
-        n: count(),
-      })
-      .from(unidades)
-      .groupBy(unidades.empreendimentoId),
-    db
-      .select({
-        empreendimentoId: unidades.empreendimentoId,
-        n: count(),
-      })
-      .from(achados)
-      .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
-      .where(eq(achados.status, "aberto"))
-      .groupBy(unidades.empreendimentoId),
-    db
-      .select({
-        empreendimentoId: unidades.empreendimentoId,
-        data: sql<string>`max(${vistorias.data})`,
-      })
-      .from(vistorias)
-      .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
-      .groupBy(unidades.empreendimentoId),
+      .orderBy(desc(empreendimentos.createdAt))
+      .limit(PAGE_SIZE)
+      .offset(offset),
   ]);
+
+  const total = Number(totalRow?.n ?? 0);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const empIds = lista.map((e) => e.id);
+
+  const [unidadesRows, abertosRows, ultimasRows] =
+    empIds.length === 0
+      ? [[], [], []]
+      : await Promise.all([
+          db
+            .select({
+              empreendimentoId: unidades.empreendimentoId,
+              n: count(),
+            })
+            .from(unidades)
+            .where(inArray(unidades.empreendimentoId, empIds))
+            .groupBy(unidades.empreendimentoId),
+          db
+            .select({
+              empreendimentoId: unidades.empreendimentoId,
+              n: count(),
+            })
+            .from(achados)
+            .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+            .where(
+              and(
+                eq(achados.status, "aberto"),
+                inArray(unidades.empreendimentoId, empIds),
+              ),
+            )
+            .groupBy(unidades.empreendimentoId),
+          db
+            .select({
+              empreendimentoId: unidades.empreendimentoId,
+              data: sql<string>`max(${vistorias.data})`,
+            })
+            .from(vistorias)
+            .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
+            .where(inArray(unidades.empreendimentoId, empIds))
+            .groupBy(unidades.empreendimentoId),
+        ]);
 
   const unidadesPor = new Map(
     unidadesRows.map((r) => [r.empreendimentoId, Number(r.n)]),
@@ -97,6 +132,7 @@ export default async function EmpreendimentosPage() {
           }
         />
       ) : (
+        <>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {lista.map((emp) => {
             const nUnidades = unidadesPor.get(emp.id) ?? 0;
@@ -158,6 +194,15 @@ export default async function EmpreendimentosPage() {
             );
           })}
         </div>
+
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          hrefForPage={(p) =>
+            p === 1 ? "/empreendimentos" : `/empreendimentos?page=${p}`
+          }
+        />
+        </>
       )}
     </div>
   );
