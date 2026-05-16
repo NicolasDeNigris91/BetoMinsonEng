@@ -22,12 +22,25 @@ import {
 import type { Empreendimento } from "@/db/schema";
 
 type Props = {
-  trigger: React.ReactElement;
+  trigger?: React.ReactElement;
   empreendimento?: Empreendimento;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
-export function EmpreendimentoFormDialog({ trigger, empreendimento }: Props) {
-  const [open, setOpen] = useState(false);
+export function EmpreendimentoFormDialog({
+  trigger,
+  empreendimento,
+  open: controlledOpen,
+  onOpenChange,
+}: Props) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   const isEdit = Boolean(empreendimento);
 
   const action = isEdit
@@ -46,7 +59,7 @@ export function EmpreendimentoFormDialog({ trigger, empreendimento }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger} />
+      {trigger ? <DialogTrigger render={trigger} /> : null}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
