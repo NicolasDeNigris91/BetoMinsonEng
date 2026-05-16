@@ -130,13 +130,13 @@ function renderAchado(
 
   const headerInner = `
     <span class="achado-num">${String(numero).padStart(2, "0")}</span>
-    <span class="cat-badge" style="background:${badge.bg};border-color:${badge.border};color:${badge.text}">
+    <span class="cat-badge" style="border-color:${badge.border};color:${badge.text}">
       ${escapeHtml(CATEGORIA_LABELS[row.categoria])}
     </span>
     ${row.local ? `<span class="local">${escapeHtml(row.local)}</span>` : ""}
     ${
       evBadge
-        ? `<span class="evento-badge" style="background:${evBadge.bg};border-color:${evBadge.border};color:${evBadge.text}">${evBadge.label}</span>`
+        ? `<span class="evento-badge" style="border-color:${evBadge.border};color:${evBadge.text}">${evBadge.label}</span>`
         : ""
     }
   `;
@@ -165,13 +165,13 @@ function renderAchado(
         .join("")}</div>`
     : "";
 
-  // Audit line cliente-friendly: "Registrado em DD/MM/YYYY às HH:MM por Fulano · N fotos"
+  // Audit line densa: "DD/MM/YYYY HH:MM · Fulano · N fotos"
   const autorPart = vistoriadorNome
-    ? ` <span class="sep">·</span> por <span class="autor">${escapeHtml(vistoriadorNome)}</span>`
+    ? ` <span class="sep">·</span> <span class="autor">${escapeHtml(vistoriadorNome)}</span>`
     : "";
   const fotosBadge =
     nFotos > 0
-      ? ` <span class="sep">·</span> <span class="photos-count">📷 ${nFotos} ${nFotos === 1 ? "foto" : "fotos"}</span>`
+      ? ` <span class="sep">·</span> <span class="photos-count">${nFotos} ${nFotos === 1 ? "foto" : "fotos"}</span>`
       : "";
 
   return `<li class="achado" style="border-left-color:${stripe}">
@@ -179,7 +179,7 @@ function renderAchado(
     <p class="descricao">${escapeHtml(row.descricao)}</p>
     ${nota}
     <p class="audit">
-      Registrado em <span class="data">${escapeHtml(row.evento.createdAtBR)}</span>${autorPart}${fotosBadge}
+      <span class="data">${escapeHtml(row.evento.createdAtBR)}</span>${autorPart}${fotosBadge}
     </p>
     ${fotosHtml}
   </li>`;
@@ -282,11 +282,11 @@ export function renderPdfHtml(data: PdfData): string {
           : ""
       }
     </p>
-    <p class="protocolo">Protocolo ${escapeHtml(data.protocolo)}</p>
+    <p class="protocolo">${escapeHtml(data.protocolo)}</p>
   </div>
   <div class="header-right">
     ${headerLogo}
-    <p class="tagline">VISTORIAS · INSPEÇÕES TÉCNICAS</p>
+    <p class="tagline">VISTORIAS TÉCNICAS</p>
   </div>
 </header>
 
@@ -315,10 +315,7 @@ body {
   margin: 0;
   padding: 0;
   line-height: 1.5;
-  background:
-    linear-gradient(rgba(15,30,58,0.025) 1px, transparent 1px) 0 0 / 24px 24px,
-    linear-gradient(90deg, rgba(15,30,58,0.025) 1px, transparent 1px) 0 0 / 24px 24px,
-    #fbfcfe;
+  background: #ffffff;
 }
 
 /* Watermark RASCUNHO — fixed permite que apareca em cada pagina impressa.
@@ -418,6 +415,8 @@ body.draft::before {
   font-weight: 700;
   font-size: 13pt;
   letter-spacing: -0.015em;
+  border-bottom: 2px solid #ff8000;
+  padding-bottom: 2px;
 }
 
 .tagline {
@@ -429,9 +428,8 @@ body.draft::before {
 }
 
 .header-divider {
-  height: 2px;
-  background: linear-gradient(90deg, transparent 0%, #ff8000 50%, transparent 100%);
-  opacity: 0.7;
+  height: 1px;
+  background: #0f1e3a;
   margin-bottom: 16px;
   position: relative;
   z-index: 1;
@@ -497,8 +495,8 @@ body.draft::before {
 .achado {
   background: #ffffff;
   border: 1px solid rgba(15,30,58,0.18);
-  border-left: 3px solid #888;
-  border-radius: 4px;
+  border-left: 4px solid #888;
+  border-radius: 0;
   padding: 10px 12px;
   page-break-inside: avoid;
   break-inside: avoid;
@@ -513,21 +511,20 @@ body.draft::before {
 }
 
 .achado-num {
-  background: #0f1e3a;
-  color: #fff;
-  padding: 2px 7px;
-  border-radius: 3px;
-  font-size: 9pt;
+  color: #0f1e3a;
+  font-size: 14pt;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  margin-right: 2px;
 }
 
 .cat-badge {
   display: inline-block;
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: 2px;
   border: 1px solid;
+  background: transparent;
   font-size: 7.5pt;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -541,8 +538,9 @@ body.draft::before {
 .evento-badge {
   display: inline-block;
   padding: 1px 8px;
-  border-radius: 4px;
+  border-radius: 999px;
   border: 1px solid;
+  background: transparent;
   font-size: 7.5pt;
   font-weight: 700;
   letter-spacing: 0.06em;

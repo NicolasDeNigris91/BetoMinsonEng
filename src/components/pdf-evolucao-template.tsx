@@ -87,7 +87,7 @@ function renderItem(item: EvolucaoItem): string {
 
   return `<li class="compare-item" style="border-left-color:${stripe}">
     <div class="compare-header">
-      <span class="cat-badge" style="background:${badge.bg};border-color:${badge.border};color:${badge.text}">
+      <span class="cat-badge" style="border-color:${badge.border};color:${badge.text}">
         ${escapeHtml(CATEGORIA_LABELS[item.categoria])}
       </span>
       <span class="local">${localLine}</span>
@@ -96,14 +96,14 @@ function renderItem(item: EvolucaoItem): string {
     <div class="compare-grid">
       <div class="compare-side">
         ${fotoSlot(item.fotoAntes, "antes")}
-        <div class="caption before">▲ achado criado</div>
+        <div class="caption before">CRIADO</div>
         <div class="date">${escapeHtml(item.vistoriaOrigemDataBR)}${item.vistoriadorNome ? ` · ${escapeHtml(item.vistoriadorNome)}` : ""}</div>
       </div>
       <div class="compare-arrow">→</div>
       <div class="compare-side">
         ${fotoSlot(item.fotoDepois, "depois")}
-        <div class="caption after">✓ resolvido</div>
-        <div class="date">${escapeHtml(item.resolvidoEmBR)} · ${diasTxt}</div>
+        <div class="caption after">RESOLVIDO · ${diasTxt}</div>
+        <div class="date">${escapeHtml(item.resolvidoEmBR)}</div>
       </div>
     </div>
     ${notaHtml}
@@ -156,15 +156,15 @@ export function renderEvolucaoHtml(data: EvolucaoData): string {
   </div>
   <div class="header-right">
     ${headerLogo}
-    <p class="tagline">VISTORIAS · INSPEÇÕES TÉCNICAS</p>
+    <p class="tagline">VISTORIAS TÉCNICAS</p>
   </div>
 </header>
 <div class="header-divider"></div>
 
 <div class="periodo-banner">
   <div>
-    <h3>${data.totalResolvidos} ${data.totalResolvidos === 1 ? "achado resolvido" : "achados resolvidos"} no período</h3>
-    <p>tempo médio de resolução · <strong>${data.tempoMedioDias != null ? `${data.tempoMedioDias.toFixed(1)} dias` : "—"}</strong></p>
+    <h3>${data.totalResolvidos} ${data.totalResolvidos === 1 ? "achado resolvido" : "achados resolvidos"}</h3>
+    <p>tempo médio · <strong>${data.tempoMedioDias != null ? `${data.tempoMedioDias.toFixed(1)} dias` : "—"}</strong></p>
   </div>
   <div class="right">
     <p class="delta-label">${saldoLabel}</p>
@@ -174,7 +174,7 @@ export function renderEvolucaoHtml(data: EvolucaoData): string {
 
 <div class="stat-row">
   <div class="stat">
-    <p class="stat-label">Criados no período</p>
+    <p class="stat-label">Criados</p>
     <p class="stat-value">${String(data.totalCriados).padStart(2, "0")}</p>
   </div>
   <div class="stat">
@@ -187,7 +187,7 @@ export function renderEvolucaoHtml(data: EvolucaoData): string {
   </div>
 </div>
 
-<h2 class="section-title">Antes e depois</h2>
+<h2 class="section-title">Antes / Depois</h2>
 <ul class="compare-list">${itemsHtml}</ul>
 
 <footer class="signature">
@@ -213,10 +213,7 @@ body {
   margin: 0;
   padding: 0;
   line-height: 1.5;
-  background:
-    linear-gradient(rgba(15,30,58,0.025) 1px, transparent 1px) 0 0 / 24px 24px,
-    linear-gradient(90deg, rgba(15,30,58,0.025) 1px, transparent 1px) 0 0 / 24px 24px,
-    #fbfcfe;
+  background: #ffffff;
 }
 
 .mono, .stat-label, .stat-value, .eyebrow, .tagline, .stamp, .cat-badge,
@@ -276,6 +273,8 @@ body {
   font-weight: 700;
   font-size: 13pt;
   letter-spacing: -0.015em;
+  border-bottom: 2px solid #ff8000;
+  padding-bottom: 2px;
 }
 .tagline {
   margin: 0;
@@ -285,9 +284,8 @@ body {
   color: rgba(15,30,58,0.55);
 }
 .header-divider {
-  height: 2px;
-  background: linear-gradient(90deg, transparent 0%, #ff8000 50%, transparent 100%);
-  opacity: 0.7;
+  height: 1px;
+  background: #0f1e3a;
   margin-bottom: 16px;
 }
 
@@ -295,17 +293,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 18px;
-  background: linear-gradient(135deg, rgba(255, 128, 0, 0.08), transparent);
-  border: 1px solid rgba(255, 128, 0, 0.3);
-  border-radius: 4px;
+  gap: 24px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid rgba(15,30,58,0.18);
+  border-top: 2px solid #0f1e3a;
+  border-radius: 0;
   margin-bottom: 16px;
 }
 .periodo-banner h3 {
   margin: 0 0 2px;
-  font-size: 12pt;
+  font-size: 16pt;
   font-weight: 700;
+  letter-spacing: -0.01em;
   font-family: 'Inter', sans-serif;
 }
 .periodo-banner p {
@@ -317,7 +317,7 @@ body {
 .periodo-banner p strong { color: #0f1e3a; }
 .periodo-banner .right { text-align: right; }
 .periodo-banner .delta {
-  font-size: 24pt;
+  font-size: 32pt;
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -340,7 +340,7 @@ body {
 .stat {
   background: #fff;
   border: 1px solid rgba(15,30,58,0.18);
-  border-radius: 4px;
+  border-radius: 0;
   padding: 10px 12px;
 }
 .stat-label {
@@ -353,7 +353,7 @@ body {
 }
 .stat-value {
   margin: 2px 0 0;
-  font-size: 22pt;
+  font-size: 28pt;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -382,8 +382,8 @@ body {
 .compare-item {
   background: #fff;
   border: 1px solid rgba(15,30,58,0.18);
-  border-left: 3px solid #888;
-  border-radius: 4px;
+  border-left: 4px solid #888;
+  border-radius: 0;
   padding: 12px;
   page-break-inside: avoid;
   break-inside: avoid;
@@ -398,8 +398,9 @@ body {
 .cat-badge {
   display: inline-block;
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: 2px;
   border: 1px solid;
+  background: transparent;
   font-size: 7.5pt;
   font-weight: 600;
   letter-spacing: 0.02em;
