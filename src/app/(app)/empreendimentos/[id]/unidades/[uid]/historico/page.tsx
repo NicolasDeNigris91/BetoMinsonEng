@@ -11,7 +11,8 @@ import {
   unidades,
   vistorias,
 } from "@/db/schema";
-import { formatDateBR } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { getDateFormat } from "@/lib/date-format-server";
 import {
   HistoricoView,
   type DayGroup,
@@ -54,6 +55,7 @@ export default async function HistoricoUnidadePage({
   params: Promise<{ id: string; uid: string }>;
 }) {
   const { id, uid } = await params;
+  const dateFmt = await getDateFormat();
 
   const [[unidade], [emp], vistoriasList, eventosList] = await Promise.all([
     db
@@ -144,7 +146,7 @@ export default async function HistoricoUnidadePage({
     .map(([dia, dayItems]) => ({
       dia,
       rel: relLabel(dia, hoje),
-      dataBR: formatDateBR(dia),
+      dataBR: formatDate(dia, dateFmt),
       items: dayItems,
     }));
 

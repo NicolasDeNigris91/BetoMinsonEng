@@ -15,7 +15,8 @@ import {
   vistorias,
 } from "@/db/schema";
 import { env } from "@/lib/env";
-import { formatDateBR } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { getDateFormat } from "@/lib/date-format-server";
 import { UploadInFlightProvider } from "@/lib/upload-in-flight";
 import { VISTORIA_STATUS_BADGE } from "@/lib/category-styles";
 import { AchadoChecklistRow } from "./achado-checklist-row";
@@ -45,8 +46,9 @@ export async function generateMetadata({
     .where(and(eq(vistorias.id, vid), eq(unidades.id, uid)))
     .limit(1);
   if (!row) return { title: "Vistoria" };
+  const dateFmt = await getDateFormat();
   return {
-    title: `${row.unidadeNome} — Vistoria ${formatDateBR(row.vistoriaData)}`,
+    title: `${row.unidadeNome} — Vistoria ${formatDate(row.vistoriaData, dateFmt)}`,
   };
 }
 
@@ -56,6 +58,7 @@ export default async function VistoriaPage({
   params: Promise<{ id: string; uid: string; vid: string }>;
 }) {
   const { id, uid, vid } = await params;
+  const dateFmt = await getDateFormat();
 
   const [
     [vistoria],
@@ -178,7 +181,7 @@ export default async function VistoriaPage({
           { label: "Empreendimentos", href: "/empreendimentos" },
           { label: emp.nome, href: `/empreendimentos/${id}` },
           { label: unidade.nome, href: `/empreendimentos/${id}/unidades/${uid}` },
-          { label: `Vistoria ${formatDateBR(vistoria.data)}` },
+          { label: `Vistoria ${formatDate(vistoria.data, dateFmt)}` },
         ]}
       />
 
@@ -187,7 +190,7 @@ export default async function VistoriaPage({
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
               Vistoria de{" "}
-              <span className="font-tech">{formatDateBR(vistoria.data)}</span>
+              <span className="font-tech">{formatDate(vistoria.data, dateFmt)}</span>
             </h1>
             <Badge
               variant="outline"
@@ -210,6 +213,7 @@ export default async function VistoriaPage({
             <MobileUploadButton
               vistoriaId={vistoria.id}
               baseUrl={env.BASE_URL}
+              dateFmt={dateFmt}
               activeToken={
                 activeUploadToken
                   ? {
@@ -389,6 +393,7 @@ export default async function VistoriaPage({
                     // retroativos sao registros historicos read-only.
                     editable={isDraft && ev.tipo === "criado"}
                     autor={vistoria.vistoriadorNome}
+                    dateFmt={dateFmt}
                     evento={{
                       id: ev.id,
                       tipo: ev.tipo,
@@ -414,6 +419,7 @@ export default async function VistoriaPage({
       <SharePanel
         vistoriaId={vistoria.id}
         baseUrl={env.BASE_URL}
+        dateFmt={dateFmt}
         tokens={activeShareTokens.map((t) => ({
           id: t.id,
           token: t.token,

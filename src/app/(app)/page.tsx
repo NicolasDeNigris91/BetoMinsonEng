@@ -4,7 +4,8 @@ import { PrazoBadge } from "@/components/prazo-badge";
 import { Button } from "@/components/ui/button";
 import { CATEGORIA_LABELS } from "@/db/schema";
 import { CATEGORIA_DOT } from "@/lib/category-styles";
-import { formatDateBR } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { getDateFormat } from "@/lib/date-format-server";
 import { cn } from "@/lib/utils";
 import { getDashboardData } from "./dashboard-data";
 import { DashboardAtividade } from "./dashboard-activity";
@@ -20,6 +21,8 @@ export default async function HomePage() {
   const seteDiasAtras = new Date();
   seteDiasAtras.setDate(seteDiasAtras.getDate() - 7);
   const seteDiasAtrasISO = seteDiasAtras.toISOString().slice(0, 10);
+
+  const dateFmt = await getDateFormat();
 
   const {
     totalAbertos,
@@ -61,7 +64,7 @@ export default async function HomePage() {
         : proximaVistoria
           ? {
               label: "Próxima vistoria",
-              msg: `${formatDateBR(proximaVistoria.dataISO)} — ${proximaVistoria.empreendimentoNome} · ${proximaVistoria.unidadeNome}`,
+              msg: `${formatDate(proximaVistoria.dataISO, dateFmt)} — ${proximaVistoria.empreendimentoNome} · ${proximaVistoria.unidadeNome}`,
               linkLabel: null,
               href: null,
             }
@@ -172,7 +175,7 @@ export default async function HomePage() {
             <span className="font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
               próxima ·{" "}
               <span className="tabular-nums text-foreground">
-                {formatDateBR(proximaVistoria.dataISO)}
+                {formatDate(proximaVistoria.dataISO, dateFmt)}
               </span>{" "}
               · {proximaVistoria.empreendimentoNome} · {proximaVistoria.unidadeNome}
             </span>

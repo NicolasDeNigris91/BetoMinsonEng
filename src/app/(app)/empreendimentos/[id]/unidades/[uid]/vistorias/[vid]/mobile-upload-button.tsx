@@ -16,7 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { formatDateTimeBR } from "@/lib/format";
+import { formatDateTime, type DateFormat } from "@/lib/format";
 import { isNextRedirectError } from "@/lib/next-errors";
 import {
   createUploadTokenAction,
@@ -27,9 +27,15 @@ type Props = {
   vistoriaId: string;
   baseUrl: string;
   activeToken: { token: string; expiraEm: string } | null;
+  dateFmt: DateFormat;
 };
 
-export function MobileUploadButton({ vistoriaId, baseUrl, activeToken }: Props) {
+export function MobileUploadButton({
+  vistoriaId,
+  baseUrl,
+  activeToken,
+  dateFmt,
+}: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
@@ -137,7 +143,7 @@ export function MobileUploadButton({ vistoriaId, baseUrl, activeToken }: Props) 
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Expira em {formatDateTimeBR(activeToken.expiraEm)}.
+              Expira em {formatDateTime(activeToken.expiraEm, dateFmt)}.
             </p>
 
             <div className="flex items-center justify-between gap-2 pt-2 border-t">

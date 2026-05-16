@@ -28,7 +28,13 @@ import {
   type Categoria,
   type EventoTipo,
 } from "@/db/schema";
-import { evaluatePrazo, formatDateBR, formatDateTimeBR } from "@/lib/format";
+import {
+  evaluatePrazo,
+  formatDate,
+  formatDateTime,
+  type DateFormat,
+} from "@/lib/format";
+import { getDateFormat } from "@/lib/date-format-server";
 import {
   CATEGORIA_DOT,
   VISTORIA_STATUS_BADGE,
@@ -137,10 +143,12 @@ function EventoLine({
   ev,
   categoria,
   autor,
+  dateFmt,
 }: {
   ev: EventoView | null;
   categoria: Categoria;
   autor: string | null;
+  dateFmt: DateFormat;
 }) {
   if (!ev) {
     return (
@@ -166,7 +174,7 @@ function EventoLine({
       </span>
       <span className="text-muted-foreground/60">·</span>
       <span className="tabular-nums text-muted-foreground">
-        {formatDateTimeBR(ev.createdAt)}
+        {formatDateTime(ev.createdAt, dateFmt)}
       </span>
       {autor ? (
         <>
@@ -187,6 +195,7 @@ export default async function UnidadeDetailPage({
 }) {
   const [{ id, uid }, sp] = await Promise.all([params, searchParams]);
   const { selectedCategorias, selectedStatus } = parseSearchParams(sp);
+  const dateFmt = await getDateFormat();
 
   const [
     [unidade],
@@ -535,7 +544,7 @@ export default async function UnidadeDetailPage({
                   <Link
                     href={href}
                     className="absolute inset-0 z-0 rounded-lg focus:outline-none"
-                    aria-label={`Abrir vistoria de ${formatDateBR(v.data)}`}
+                    aria-label={`Abrir vistoria de ${formatDate(v.data, dateFmt)}`}
                   />
 
                   <div className="pointer-events-none relative z-[1]">
@@ -544,7 +553,7 @@ export default async function UnidadeDetailPage({
                         <p className="text-base font-semibold text-foreground">
                           Vistoria de{" "}
                           <span className="font-tech">
-                            {formatDateBR(v.data)}
+                            {formatDate(v.data, dateFmt)}
                           </span>
                         </p>
                         {v.vistoriadorNome ? (
@@ -590,11 +599,13 @@ export default async function UnidadeDetailPage({
                               ev={row.left}
                               categoria={row.categoria}
                               autor={v.vistoriadorNome}
+                              dateFmt={dateFmt}
                             />
                             <EventoLine
                               ev={row.right}
                               categoria={row.categoria}
                               autor={v.vistoriadorNome}
+                              dateFmt={dateFmt}
                             />
                           </li>
                         ))}
@@ -609,7 +620,7 @@ export default async function UnidadeDetailPage({
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-1.5 py-1 font-mono text-[9px] font-semibold tracking-[0.08em] uppercase text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                      aria-label={`Baixar PDF da vistoria de ${formatDateBR(v.data)}`}
+                      aria-label={`Baixar PDF da vistoria de ${formatDate(v.data, dateFmt)}`}
                       title="Baixar PDF desta vistoria"
                     >
                       <FileText className="size-3" />

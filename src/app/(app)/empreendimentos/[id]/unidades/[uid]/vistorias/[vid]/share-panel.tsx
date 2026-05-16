@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { toast } from "sonner";
-import { formatDateTimeBR } from "@/lib/format";
+import { formatDateTime, type DateFormat } from "@/lib/format";
 import { isNextRedirectError } from "@/lib/next-errors";
 import {
   createShareTokenAction,
@@ -31,9 +31,10 @@ type Props = {
   vistoriaId: string;
   baseUrl: string;
   tokens: ShareTokenView[];
+  dateFmt: DateFormat;
 };
 
-export function SharePanel({ vistoriaId, baseUrl, tokens }: Props) {
+export function SharePanel({ vistoriaId, baseUrl, tokens, dateFmt }: Props) {
   const [pending, start] = useTransition();
   const [busy, setBusy] = useState(false);
 
@@ -159,7 +160,7 @@ export function SharePanel({ vistoriaId, baseUrl, tokens }: Props) {
                   }
                 />
                 <span className="text-xs text-muted-foreground hidden sm:inline whitespace-nowrap">
-                  expira {formatDateTimeBR(t.expiraEm)}
+                  expira {formatDateTime(t.expiraEm, dateFmt)}
                 </span>
               </div>
             );

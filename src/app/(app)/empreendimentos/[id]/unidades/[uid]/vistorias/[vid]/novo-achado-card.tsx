@@ -22,7 +22,7 @@ import {
   CATEGORIA_STRIPE_BORDER,
   EVENTO_BADGE,
 } from "@/lib/category-styles";
-import { formatDateTimeBR } from "@/lib/format";
+import { formatDateTime, type DateFormat } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { isNextRedirectError } from "@/lib/next-errors";
 
@@ -59,6 +59,7 @@ type Props = {
     fotos: FotoView[];
   };
   shareToken?: string;
+  dateFmt: DateFormat;
 };
 
 export function NovoAchadoCard({
@@ -68,6 +69,7 @@ export function NovoAchadoCard({
   autor,
   evento,
   shareToken,
+  dateFmt,
 }: Props) {
   const [pending, start] = useTransition();
 
@@ -133,7 +135,7 @@ export function NovoAchadoCard({
       </span>
       <span className="text-muted-foreground/60">·</span>
       <span className="tabular-nums text-muted-foreground">
-        {formatDateTimeBR(evento.createdAt)}
+        {formatDateTime(evento.createdAt, dateFmt)}
       </span>
       {autor ? (
         <>
