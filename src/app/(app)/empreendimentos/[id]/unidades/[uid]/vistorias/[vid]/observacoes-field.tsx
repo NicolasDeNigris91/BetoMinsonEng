@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { isNextRedirectError } from "@/lib/next-errors";
@@ -100,9 +99,13 @@ export function ObservacoesField({
   if (!editable) {
     if (!initial) return null;
     return (
-      <div className="rounded-lg border bg-muted/30 p-4">
-        <p className="text-sm font-medium mb-1">Observações gerais</p>
-        <p className="text-sm whitespace-pre-line">{initial}</p>
+      <div className="space-y-2">
+        <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
+          Observações gerais
+        </h2>
+        <p className="rounded-lg border bg-muted/30 p-4 text-sm whitespace-pre-line">
+          {initial}
+        </p>
       </div>
     );
   }
@@ -110,7 +113,12 @@ export function ObservacoesField({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <Label htmlFor="observacoesGerais">Observações gerais</Label>
+        <label
+          htmlFor="observacoesGerais"
+          className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80"
+        >
+          Observações gerais
+        </label>
         <SaveStatus
           pending={pending}
           dirty={dirty}

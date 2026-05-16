@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { eq, and, ne, asc, gt, desc, count, sql } from "drizzle-orm";
+import { CheckCircle2, ClipboardCheck } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -182,7 +183,7 @@ export default async function VistoriaPage({
       />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
               Vistoria de{" "}
@@ -196,12 +197,15 @@ export default async function VistoriaPage({
             </Badge>
           </div>
           {vistoria.vistoriadorNome ? (
-            <p className="mt-1 text-sm text-muted-foreground">
-              Vistoriador: {vistoria.vistoriadorNome}
-            </p>
+            <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+              <dt className="self-center font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground">
+                Vistoriador
+              </dt>
+              <dd className="text-foreground">{vistoria.vistoriadorNome}</dd>
+            </dl>
           ) : null}
         </div>
-        <div className="flex flex-wrap items-start gap-2">
+        <div className="flex shrink-0 flex-wrap items-start gap-2">
           {isDraft ? (
             <MobileUploadButton
               vistoriaId={vistoria.id}
@@ -229,9 +233,35 @@ export default async function VistoriaPage({
       {isDraft ? (
         <section className="space-y-3">
           <div>
-            <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
-              Achados em aberto da unidade
-            </h2>
+            <div className="flex flex-wrap items-baseline gap-3">
+              <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
+                Achados em aberto da unidade
+              </h2>
+              {checklist.length > 0
+                ? (() => {
+                    // "marcados" = quantos do checklist ja tem evento NESTA
+                    // vistoria. Nao usar eventByAchadoId.size direto porque
+                    // ele inclui os 'criado' dos novos achados desta vistoria.
+                    const marcados = checklist.reduce(
+                      (n, a) => n + (eventByAchadoId.has(a.id) ? 1 : 0),
+                      0,
+                    );
+                    const aMarcar = checklist.length - marcados;
+                    return (
+                      <span className="font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
+                        <span className="tabular-nums text-emerald-700 dark:text-emerald-300">
+                          {String(marcados).padStart(2, "0")}
+                        </span>{" "}
+                        marcado{marcados === 1 ? "" : "s"} ·{" "}
+                        <span className="tabular-nums text-amber-700 dark:text-amber-300">
+                          {String(aMarcar).padStart(2, "0")}
+                        </span>{" "}
+                        a marcar
+                      </span>
+                    );
+                  })()
+                : null}
+            </div>
             <p className="mt-1 text-sm text-muted-foreground">
               Marque cada um como resolvido ou que persiste. Os não marcados são
               ignorados nesta vistoria.
@@ -239,9 +269,22 @@ export default async function VistoriaPage({
           </div>
 
           {checklist.length === 0 ? (
-            <p className="rounded-lg border bg-muted/30 p-6 text-sm text-center text-muted-foreground">
-              Nenhum achado de vistorias anteriores em aberto. Bom trabalho!
-            </p>
+            <div className="bp-grid-strong relative overflow-hidden rounded-lg border bg-card">
+              <div className="mx-auto flex max-w-md flex-col items-center justify-center px-6 py-8 text-center">
+                <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3">
+                  <CheckCircle2
+                    className="size-6 text-emerald-600 dark:text-emerald-400"
+                    aria-hidden
+                  />
+                </div>
+                <p className="mt-3 font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
+                  Sem pendências anteriores
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Nenhum achado de vistorias anteriores em aberto. Bom trabalho!
+                </p>
+              </div>
+            </div>
           ) : (
             <div className="space-y-2">
               {checklist.map((a) => {
@@ -283,14 +326,19 @@ export default async function VistoriaPage({
       <Separator />
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-baseline gap-3">
             <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
               {isDraft ? "Achados criados nesta vistoria" : "Achados desta vistoria"}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {novosAchados.length} {novosAchados.length === 1 ? "achado" : "achados"}
-            </p>
+            {novosAchados.length > 0 ? (
+              <span className="font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
+                <span className="tabular-nums text-foreground">
+                  {String(novosAchados.length).padStart(2, "0")}
+                </span>{" "}
+                {novosAchados.length === 1 ? "achado" : "achados"}
+              </span>
+            ) : null}
           </div>
           {isDraft ? (
             <AchadoFormDialog
@@ -306,9 +354,24 @@ export default async function VistoriaPage({
         </div>
 
         {novosAchados.length === 0 ? (
-          <p className="rounded-lg border bg-muted/30 p-6 text-sm text-center text-muted-foreground">
-            Nenhum achado registrado nesta vistoria ainda.
-          </p>
+          <div className="bp-grid-strong relative overflow-hidden rounded-lg border bg-card">
+            <div className="mx-auto flex max-w-md flex-col items-center justify-center px-6 py-8 text-center">
+              <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3">
+                <ClipboardCheck
+                  className="size-6 text-muted-foreground/60"
+                  aria-hidden
+                />
+              </div>
+              <p className="mt-3 font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
+                Sem achados
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {isDraft
+                  ? "Clique em \"Novo achado\" pra registrar a primeira ocorrência desta vistoria."
+                  : "Nenhum achado foi registrado nesta vistoria."}
+              </p>
+            </div>
+          </div>
         ) : (
           <AchadosSortableList
             vistoriaId={vistoria.id}
