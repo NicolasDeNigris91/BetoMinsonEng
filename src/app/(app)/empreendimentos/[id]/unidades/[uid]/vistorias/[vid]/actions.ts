@@ -10,6 +10,11 @@ import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
 import { invalidateAchados, invalidateVistorias } from "@/lib/cache-tags";
 import {
+  actionError,
+  type ActionError,
+  type VoidActionResult,
+} from "@/lib/action-result";
+import {
   vistoriaContext,
   vistoriaPath,
   type VistoriaCtx,
@@ -31,20 +36,28 @@ export type NovoAchadoState = {
   error?: string;
 };
 
-function assertEditable(ctx: VistoriaCtx) {
+/**
+ * Guarda de regra de negocio: vistoria precisa estar em rascunho pra
+ * aceitar edicao. Retorna ActionError pra ser propagado como valor — em
+ * producao Next ofusca msg de throws em server actions (ver
+ * action-result.ts).
+ */
+function editableGuard(ctx: VistoriaCtx): ActionError | null {
   if (ctx.vistoriaStatus !== "rascunho") {
-    throw new Error("Vistoria já finalizada. Reabra antes de editar.");
+    return actionError("Vistoria já finalizada. Reabra antes de editar.");
   }
+  return null;
 }
 
 export async function setAchadoStateInVistoriaAction(
   vistoriaId: string,
   achadoId: string,
   state: "none" | "persiste" | "resolvido" | "nota",
-): Promise<void> {
+): Promise<VoidActionResult> {
   await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
-  assertEditable(ctx);
+  const guard = editableGuard(ctx);
+  if (guard) return guard;
 
   let fotosToCleanup: { arquivoPath: string; thumbPath: string }[] = [];
 
@@ -120,7 +133,8 @@ export async function createAchadoAction(
 ): Promise<NovoAchadoState> {
   await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
-  assertEditable(ctx);
+  const guard = editableGuard(ctx);
+  if (guard) return { error: guard.error };
 
   const parsed = novoAchadoSchema.safeParse({
     categoria: formData.get("categoria"),
@@ -195,7 +209,8 @@ export async function updateAchadoAction(
 ): Promise<NovoAchadoState> {
   await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
-  assertEditable(ctx);
+  const guard = editableGuard(ctx);
+  if (guard) return { error: guard.error };
 
   const parsed = updateAchadoSchema.safeParse({
     categoria: formData.get("categoria"),
@@ -231,10 +246,11 @@ export async function updateAchadoAction(
 export async function deleteAchadoAction(
   achadoId: string,
   vistoriaId: string,
-): Promise<void> {
+): Promise<VoidActionResult> {
   await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
-  assertEditable(ctx);
+  const guard = editableGuard(ctx);
+  if (guard) return guard;
 
   const [achado] = await db
     .select({
@@ -247,7 +263,7 @@ export async function deleteAchadoAction(
   if (!achado) return;
 
   if (achado.vistoriaOrigemId !== vistoriaId) {
-    throw new Error(
+    return actionError(
       "Este achado foi criado em outra vistoria. Apague-o lá ou apenas marque como resolvido aqui.",
     );
   }
@@ -274,31 +290,31 @@ export async function deleteAchadoAction(
 export async function reorderAchadosAction(
   vistoriaId: string,
   achadoIdsInOrder: string[],
-): Promise<void> {
+): Promise<VoidActionResult> {
   await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
-  assertEditable(ctx);
+  const guard = editableGuard(ctx);
+  if (guard) return guard;
 
   if (achadoIdsInOrder.length === 0) return;
 
-  await db.transaction(async (tx) => {
-    const rows = await tx
-      .select({ id: achados.id, vistoriaOrigemId: achados.vistoriaOrigemId })
-      .from(achados)
-      .where(inArray(achados.id, achadoIdsInOrder));
+  // Validacao de ownership feita ANTES da transacao pra poder retornar
+  // como ActionError em vez de jogar throw (que seria ofuscado em prod).
+  const rows = await db
+    .select({ id: achados.id, vistoriaOrigemId: achados.vistoriaOrigemId })
+    .from(achados)
+    .where(inArray(achados.id, achadoIdsInOrder));
 
-    const validIds = new Set(
-      rows
-        .filter((r) => r.vistoriaOrigemId === vistoriaId)
-        .map((r) => r.id),
-    );
-
-    for (const id of achadoIdsInOrder) {
-      if (!validIds.has(id)) {
-        throw new Error("Achado nao pertence a esta vistoria.");
-      }
+  const validIds = new Set(
+    rows.filter((r) => r.vistoriaOrigemId === vistoriaId).map((r) => r.id),
+  );
+  for (const id of achadoIdsInOrder) {
+    if (!validIds.has(id)) {
+      return actionError("Achado nao pertence a esta vistoria.");
     }
+  }
 
+  await db.transaction(async (tx) => {
     // Atualiza um por um. Lista e curta o suficiente (<50) pra que N queries
     // sejam aceitaveis e mantem o codigo simples.
     for (let i = 0; i < achadoIdsInOrder.length; i++) {
@@ -361,10 +377,11 @@ const observacoesSchema = z.object({
 export async function updateObservacoesAction(
   vistoriaId: string,
   formData: FormData,
-): Promise<void> {
+): Promise<VoidActionResult> {
   await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
-  assertEditable(ctx);
+  const guard = editableGuard(ctx);
+  if (guard) return guard;
 
   const parsed = observacoesSchema.safeParse({
     observacoesGerais: formData.get("observacoesGerais"),
@@ -381,12 +398,12 @@ export async function updateObservacoesAction(
 
 export async function deleteVistoriaFromEditPageAction(
   vistoriaId: string,
-): Promise<void> {
+): Promise<VoidActionResult> {
   await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
 
   if (ctx.vistoriaStatus === "finalizada") {
-    throw new Error("Vistoria finalizada. Reabra antes de excluir.");
+    return actionError("Vistoria finalizada. Reabra antes de excluir.");
   }
 
   const fotosToCleanup = await db
@@ -400,6 +417,8 @@ export async function deleteVistoriaFromEditPageAction(
   invalidateVistorias();
   invalidateAchados();
 
+  // redirect() joga NEXT_REDIRECT — sinal de sucesso, tratado pelo
+  // isNextRedirectError no client.
   redirect(
     `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
   );

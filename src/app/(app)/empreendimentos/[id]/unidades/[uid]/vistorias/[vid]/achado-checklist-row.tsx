@@ -48,10 +48,15 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
   const setState = (next: "persiste" | "resolvido" | "none") => {
     start(async () => {
       try {
-        await setAchadoStateInVistoriaAction(vistoriaId, achado.id, next);
+        const result = await setAchadoStateInVistoriaAction(
+          vistoriaId,
+          achado.id,
+          next,
+        );
+        if (result?.error) toast.error(result.error);
       } catch (err) {
         if (isNextRedirectError(err)) throw err;
-        toast.error(err instanceof Error ? err.message : "Erro inesperado");
+        toast.error("Erro inesperado. Tente novamente.");
       }
     });
   };
@@ -59,10 +64,11 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
   const ensureNota = () => {
     start(async () => {
       try {
-        await ensureNotaEventoAction(vistoriaId, achado.id);
+        const result = await ensureNotaEventoAction(vistoriaId, achado.id);
+        if ("error" in result) toast.error(result.error);
       } catch (err) {
         if (isNextRedirectError(err)) throw err;
-        toast.error(err instanceof Error ? err.message : "Erro inesperado");
+        toast.error("Erro inesperado. Tente novamente.");
       }
     });
   };

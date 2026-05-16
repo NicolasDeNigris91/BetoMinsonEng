@@ -55,12 +55,17 @@ export function ObservacoesField({
       try {
         const fd = new FormData();
         fd.set("observacoesGerais", snapshot);
-        await updateObservacoesAction(vistoriaId, fd);
+        const result = await updateObservacoesAction(vistoriaId, fd);
+        if (result?.error) {
+          toast.error(result.error);
+          // mantem dirty=true → proximo onChange/blur agenda novo save
+          return;
+        }
         setSavedValue(snapshot);
         setLastSavedAt(new Date());
       } catch (err) {
         if (isNextRedirectError(err)) throw err;
-        toast.error(err instanceof Error ? err.message : "Erro ao salvar");
+        toast.error("Erro ao salvar. Tente novamente.");
         // mantem dirty=true → proximo onChange/blur agenda novo save
       }
     });

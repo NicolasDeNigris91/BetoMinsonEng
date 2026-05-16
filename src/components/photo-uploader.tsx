@@ -140,13 +140,15 @@ export function PhotoUploader({
 
     start(async () => {
       try {
-        await reorderFotosAction(eventoId, next);
+        const result = await reorderFotosAction(eventoId, next);
+        if (result?.error) {
+          setOrderIds(previous);
+          toast.error(result.error);
+        }
       } catch (err) {
         if (isNextRedirectError(err)) throw err;
         setOrderIds(previous);
-        toast.error(
-          err instanceof Error ? err.message : "Falha ao reordenar fotos",
-        );
+        toast.error("Falha ao reordenar fotos. Tente novamente.");
       }
     });
   };
@@ -242,10 +244,11 @@ export function PhotoUploader({
   const handleDelete = (id: string) => {
     start(async () => {
       try {
-        await deleteFotoAction(id);
+        const result = await deleteFotoAction(id);
+        if (result?.error) toast.error(result.error);
       } catch (err) {
         if (isNextRedirectError(err)) throw err;
-        toast.error(err instanceof Error ? err.message : "Erro ao excluir");
+        toast.error("Erro ao excluir. Tente novamente.");
       }
     });
   };
@@ -297,10 +300,11 @@ export function PhotoUploader({
     if (current === original) return;
     start(async () => {
       try {
-        await updateLegendaAction(id, current);
+        const result = await updateLegendaAction(id, current);
+        if (result?.error) toast.error(result.error);
       } catch (err) {
         if (isNextRedirectError(err)) throw err;
-        toast.error(err instanceof Error ? err.message : "Erro ao salvar");
+        toast.error("Erro ao salvar. Tente novamente.");
       }
     });
   };

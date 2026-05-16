@@ -8,12 +8,23 @@ import { achadoEventos, fotos } from "@/db/schema";
 import { requireMutation } from "@/lib/require-mutation";
 import { deleteFile } from "@/lib/storage";
 import {
+  actionData,
+  actionError,
+  type DataActionResult,
+  type VoidActionResult,
+} from "@/lib/action-result";
+import {
   vistoriaContext,
   vistoriaContextFromEvento,
   vistoriaPath,
 } from "@/lib/vistoria-context";
 
-export async function deleteFotoAction(fotoId: string): Promise<void> {
+const FINALIZADA_DELETE_MSG = "Vistoria finalizada. Reabra antes de remover fotos.";
+const FINALIZADA_EDIT_MSG = "Vistoria finalizada. Reabra antes de editar.";
+
+export async function deleteFotoAction(
+  fotoId: string,
+): Promise<VoidActionResult> {
   await requireMutation();
 
   const [foto] = await db
@@ -30,7 +41,7 @@ export async function deleteFotoAction(fotoId: string): Promise<void> {
 
   const ctx = await vistoriaContextFromEvento(foto.eventoId);
   if (ctx.vistoriaStatus === "finalizada") {
-    throw new Error("Vistoria finalizada. Reabra antes de remover fotos.");
+    return actionError(FINALIZADA_DELETE_MSG);
   }
 
   await db.delete(fotos).where(eq(fotos.id, fotoId));
@@ -47,11 +58,11 @@ const legendaSchema = z.string().trim().max(500);
 export async function updateLegendaAction(
   fotoId: string,
   legenda: string,
-): Promise<void> {
+): Promise<VoidActionResult> {
   await requireMutation();
 
   const parsed = legendaSchema.safeParse(legenda);
-  if (!parsed.success) throw new Error("Legenda inválida");
+  if (!parsed.success) return actionError("Legenda inválida");
 
   const [foto] = await db
     .select({ eventoId: fotos.achadoEventoId })
@@ -62,7 +73,7 @@ export async function updateLegendaAction(
 
   const ctx = await vistoriaContextFromEvento(foto.eventoId);
   if (ctx.vistoriaStatus === "finalizada") {
-    throw new Error("Vistoria finalizada.");
+    return actionError(FINALIZADA_EDIT_MSG);
   }
 
   await db
@@ -78,15 +89,15 @@ const notaSchema = z.string().trim().max(2000);
 export async function updateEventoNotaAction(
   eventoId: string,
   nota: string,
-): Promise<void> {
+): Promise<VoidActionResult> {
   await requireMutation();
 
   const parsed = notaSchema.safeParse(nota);
-  if (!parsed.success) throw new Error("Nota inválida");
+  if (!parsed.success) return actionError("Nota inválida");
 
   const ctx = await vistoriaContextFromEvento(eventoId);
   if (ctx.vistoriaStatus === "finalizada") {
-    throw new Error("Vistoria finalizada.");
+    return actionError(FINALIZADA_EDIT_MSG);
   }
 
   await db
@@ -105,35 +116,36 @@ export async function updateEventoNotaAction(
 export async function reorderFotosAction(
   eventoId: string,
   fotoIdsInOrder: string[],
-): Promise<void> {
+): Promise<VoidActionResult> {
   await requireMutation();
 
   if (fotoIdsInOrder.length === 0) return;
 
   const ctx = await vistoriaContextFromEvento(eventoId);
   if (ctx.vistoriaStatus === "finalizada") {
-    throw new Error("Vistoria finalizada.");
+    return actionError(FINALIZADA_EDIT_MSG);
+  }
+
+  // Validacao de ownership ANTES da transacao pra poder retornar como
+  // ActionError em vez de throw (que em prod tem msg ofuscada).
+  const rows = await db
+    .select({
+      id: fotos.id,
+      achadoEventoId: fotos.achadoEventoId,
+    })
+    .from(fotos)
+    .where(inArray(fotos.id, fotoIdsInOrder));
+
+  const validIds = new Set(
+    rows.filter((r) => r.achadoEventoId === eventoId).map((r) => r.id),
+  );
+  for (const id of fotoIdsInOrder) {
+    if (!validIds.has(id)) {
+      return actionError("Foto nao pertence a este evento.");
+    }
   }
 
   await db.transaction(async (tx) => {
-    const rows = await tx
-      .select({
-        id: fotos.id,
-        achadoEventoId: fotos.achadoEventoId,
-      })
-      .from(fotos)
-      .where(inArray(fotos.id, fotoIdsInOrder));
-
-    const validIds = new Set(
-      rows.filter((r) => r.achadoEventoId === eventoId).map((r) => r.id),
-    );
-
-    for (const id of fotoIdsInOrder) {
-      if (!validIds.has(id)) {
-        throw new Error("Foto nao pertence a este evento.");
-      }
-    }
-
     for (let i = 0; i < fotoIdsInOrder.length; i++) {
       await tx
         .update(fotos)
@@ -148,10 +160,12 @@ export async function reorderFotosAction(
 export async function ensureNotaEventoAction(
   vistoriaId: string,
   achadoId: string,
-): Promise<{ eventoId: string }> {
+): Promise<DataActionResult<{ eventoId: string }>> {
   await requireMutation();
   const ctx = await vistoriaContext(vistoriaId);
-  if (ctx.vistoriaStatus === "finalizada") throw new Error("Vistoria finalizada.");
+  if (ctx.vistoriaStatus === "finalizada") {
+    return actionError(FINALIZADA_EDIT_MSG);
+  }
 
   const existing = await db
     .select({ id: achadoEventos.id })
@@ -165,7 +179,7 @@ export async function ensureNotaEventoAction(
     .limit(1);
 
   if (existing.length > 0) {
-    return { eventoId: existing[0].id };
+    return actionData({ eventoId: existing[0].id });
   }
 
   const [created] = await db
@@ -174,5 +188,5 @@ export async function ensureNotaEventoAction(
     .returning({ id: achadoEventos.id });
 
   revalidatePath(vistoriaPath(ctx));
-  return { eventoId: created.id };
+  return actionData({ eventoId: created.id });
 }

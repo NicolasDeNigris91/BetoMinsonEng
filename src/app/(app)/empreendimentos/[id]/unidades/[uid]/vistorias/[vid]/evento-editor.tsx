@@ -43,12 +43,16 @@ export function EventoEditor({
   const saveNota = () => {
     start(async () => {
       try {
-        await updateEventoNotaAction(eventoId, nota);
+        const result = await updateEventoNotaAction(eventoId, nota);
+        if (result?.error) {
+          toast.error(result.error);
+          return;
+        }
         setSavedNota(nota);
         toast.success("Nota salva");
       } catch (err) {
         if (isNextRedirectError(err)) throw err;
-        toast.error(err instanceof Error ? err.message : "Erro ao salvar");
+        toast.error("Erro ao salvar. Tente novamente.");
       }
     });
   };

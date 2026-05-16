@@ -77,13 +77,14 @@ export function NovoAchadoCard({
     return new Promise<void>((resolve) => {
       start(async () => {
         try {
-          await deleteAchadoAction(achado.id, vistoriaId);
+          const result = await deleteAchadoAction(achado.id, vistoriaId);
+          if (result?.error) toast.error(result.error);
         } catch (err) {
           if (isNextRedirectError(err)) {
             resolve();
             throw err;
           }
-          toast.error(err instanceof Error ? err.message : "Erro inesperado");
+          toast.error("Erro ao excluir. Tente novamente.");
         } finally {
           resolve();
         }

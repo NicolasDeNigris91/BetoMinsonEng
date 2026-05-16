@@ -99,13 +99,15 @@ export function AchadosSortableList({
 
     start(async () => {
       try {
-        await reorderAchadosAction(vistoriaId, next);
+        const result = await reorderAchadosAction(vistoriaId, next);
+        if (result?.error) {
+          setOrder(previous);
+          toast.error(result.error);
+        }
       } catch (err) {
         if (isNextRedirectError(err)) throw err;
         setOrder(previous);
-        toast.error(
-          err instanceof Error ? err.message : "Falha ao reordenar",
-        );
+        toast.error("Falha ao reordenar. Tente novamente.");
       }
     });
   };

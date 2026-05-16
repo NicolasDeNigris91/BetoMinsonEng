@@ -57,7 +57,9 @@ export function VistoriaActionsBar({
             resolve();
             throw err;
           }
-          toast.error(err instanceof Error ? err.message : "Erro");
+          // Erro inesperado real (DB, infra) — em prod a msg seria ofuscada,
+          // entao mostra texto generico nosso em vez de err.message.
+          toast.error("Erro ao finalizar. Tente novamente.");
         } finally {
           resolve();
         }
@@ -75,7 +77,7 @@ export function VistoriaActionsBar({
             resolve();
             throw err;
           }
-          toast.error(err instanceof Error ? err.message : "Erro");
+          toast.error("Erro ao reabrir. Tente novamente.");
         } finally {
           resolve();
         }
@@ -86,13 +88,17 @@ export function VistoriaActionsBar({
     new Promise<void>((resolve) => {
       start(async () => {
         try {
-          await deleteVistoriaFromEditPageAction(vistoriaId);
+          const result = await deleteVistoriaFromEditPageAction(vistoriaId);
+          if (result?.error) {
+            toast.error(result.error);
+          }
         } catch (err) {
           if (isNextRedirectError(err)) {
+            // Caminho de sucesso: action chama redirect() apos excluir.
             resolve();
             throw err;
           }
-          toast.error(err instanceof Error ? err.message : "Erro");
+          toast.error("Erro ao excluir. Tente novamente.");
         } finally {
           resolve();
         }
@@ -167,14 +173,22 @@ export function VistoriaActionsBar({
               <FileDown className="mr-2 size-4 text-red-600 dark:text-red-500" />
               Exportar PDF
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => setDeleteOpen(true)}
-              className="text-destructive focus:bg-destructive/10 focus:text-destructive data-highlighted:text-destructive"
-            >
-              <Trash2 className="mr-2 size-4" />
-              Excluir
-            </DropdownMenuItem>
+            {/* Excluir so faz sentido enquanto rascunho. Vistoria finalizada
+                precisa ser reaberta primeiro — esconder o item evita o caminho
+                que dispara o erro de "Vistoria finalizada. Reabra antes de
+                excluir." (defense em profundidade com o guard no action). */}
+            {status === "rascunho" ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setDeleteOpen(true)}
+                  className="text-destructive focus:bg-destructive/10 focus:text-destructive data-highlighted:text-destructive"
+                >
+                  <Trash2 className="mr-2 size-4" />
+                  Excluir
+                </DropdownMenuItem>
+              </>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
