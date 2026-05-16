@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, desc, and, count, asc, sql } from "drizzle-orm";
-import { CheckCircle2, ClipboardList, FileText, History, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  ClipboardList,
+  FileText,
+  History,
+  Plus,
+  StickyNote,
+} from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
-import { EmptyState } from "@/components/empty-state";
-import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   ResolverPendenciasDialog,
   type PendenciaView,
@@ -31,9 +35,8 @@ import {
   VISTORIA_STATUS_STRIPE,
 } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
-import { UnidadeFormDialog } from "../../unidade-form";
-import { deleteUnidadeAction } from "../../actions";
 import { NovaVistoriaDialog } from "./nova-vistoria-dialog";
+import { UnidadeActionsMenu } from "./unidade-actions-menu";
 import {
   UnidadeFilters,
   type StatusFilter,
@@ -370,17 +373,25 @@ export default async function UnidadeDetailPage({
       />
 
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
             {unidade.nome}
           </h1>
           {unidade.observacoes ? (
-            <p className="mt-1 text-sm whitespace-pre-line text-muted-foreground">
-              {unidade.observacoes}
-            </p>
+            <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+              <dt className="self-start pt-1.5 font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <StickyNote className="size-3" />
+                  Notas
+                </span>
+              </dt>
+              <dd className="rounded-md bg-muted/40 px-2.5 py-1.5 text-sm whitespace-pre-line text-foreground/90">
+                {unidade.observacoes}
+              </dd>
+            </dl>
           ) : null}
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -391,42 +402,8 @@ export default async function UnidadeDetailPage({
             <History className="mr-1.5 size-4" />
             Histórico
           </Button>
-          <UnidadeFormDialog
-            empreendimentoId={id}
-            unidade={unidade}
-            trigger={
-              <Button variant="outline" size="sm">
-                <Pencil className="mr-1.5 size-4" />
-                Editar
-              </Button>
-            }
-          />
-          <ConfirmDialog
-            title="Excluir unidade?"
-            description="Todas as vistorias, achados e fotos desta unidade serão removidos."
-            confirmLabel="Excluir"
-            destructive
-            onConfirm={deleteUnidadeAction.bind(null, unidade.id)}
-            trigger={
-              <Button variant="ghost" size="sm" aria-label="Excluir unidade">
-                <Trash2 className="size-4" />
-              </Button>
-            }
-          />
+          <UnidadeActionsMenu empreendimentoId={id} unidade={unidade} />
         </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Vistorias" value={vistoriasList.length} />
-        <StatCard
-          label="Em aberto"
-          value={Number(achadosCounts?.abertos ?? 0)}
-          accent
-        />
-        <StatCard
-          label="Resolvidos"
-          value={Number(achadosCounts?.resolvidos ?? 0)}
-        />
       </div>
 
       <UnidadeFilters
@@ -440,9 +417,33 @@ export default async function UnidadeDetailPage({
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
-            Vistorias
-          </h2>
+          <div className="flex items-baseline gap-3">
+            <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
+              Vistorias
+            </h2>
+            {vistoriasList.length > 0 ? (
+              <span className="font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
+                <span className="tabular-nums text-foreground">
+                  {String(vistoriasList.length).padStart(2, "0")}
+                </span>{" "}
+                {vistoriasList.length === 1 ? "vistoria" : "vistorias"} ·{" "}
+                <span className="tabular-nums text-amber-700 dark:text-amber-300">
+                  {String(Number(achadosCounts?.abertos ?? 0)).padStart(2, "0")}
+                </span>{" "}
+                abertos
+                {Number(achadosCounts?.resolvidos ?? 0) > 0 ? (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span className="tabular-nums text-emerald-700 dark:text-emerald-300">
+                      {String(Number(achadosCounts.resolvidos)).padStart(2, "0")}
+                    </span>{" "}
+                    resolvidos
+                  </>
+                ) : null}
+              </span>
+            ) : null}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             {pendenciasGlobais.length > 0 ? (
               <ResolverPendenciasDialog
@@ -458,35 +459,50 @@ export default async function UnidadeDetailPage({
                 }
               />
             ) : null}
-            <NovaVistoriaDialog
-              unidadeId={unidade.id}
-              trigger={
-                <Button size="sm">
-                  <Plus className="mr-1.5 size-4" />
-                  Nova vistoria
-                </Button>
-              }
-            />
-          </div>
-        </div>
-
-        {vistoriasList.length === 0 ? (
-          <EmptyState
-            icon={ClipboardList}
-            eyebrow="Sem vistorias registradas"
-            description="Crie a primeira vistoria pra começar a registrar achados."
-            action={
+            {/* CTA do topo so aparece quando ja existem vistorias.
+                Quando vazio, o CTA do empty state e a unica acao primaria. */}
+            {vistoriasList.length > 0 ? (
               <NovaVistoriaDialog
                 unidadeId={unidade.id}
                 trigger={
                   <Button size="sm">
                     <Plus className="mr-1.5 size-4" />
-                    Criar primeira vistoria
+                    Nova vistoria
                   </Button>
                 }
               />
-            }
-          />
+            ) : null}
+          </div>
+        </div>
+
+        {vistoriasList.length === 0 ? (
+          <div className="bp-grid-strong relative overflow-hidden rounded-lg border bg-card">
+            <div className="mx-auto flex max-w-md flex-col items-center justify-center px-6 py-10 text-center">
+              <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3">
+                <ClipboardList
+                  className="size-8 text-muted-foreground/60"
+                  aria-hidden
+                />
+              </div>
+              <p className="mt-4 font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
+                Sem vistorias registradas
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Crie a primeira vistoria pra começar a registrar achados.
+              </p>
+              <div className="mt-4">
+                <NovaVistoriaDialog
+                  unidadeId={unidade.id}
+                  trigger={
+                    <Button size="sm">
+                      <Plus className="mr-1.5 size-4" />
+                      Criar primeira vistoria
+                    </Button>
+                  }
+                />
+              </div>
+            </div>
+          </div>
         ) : vistoriasVisiveis.length === 0 ? (
           <p className="rounded-lg border bg-muted/30 p-6 text-sm text-center text-muted-foreground">
             Nenhuma vistoria com achados que combinam com o filtro atual.
