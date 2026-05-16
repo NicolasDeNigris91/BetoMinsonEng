@@ -1,14 +1,42 @@
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-export function formatDateBR(value: Date | string): string {
+export type DateFormat = "br" | "iso";
+
+/** Nome do cookie que guarda a preferencia do usuario. */
+export const DATE_FORMAT_COOKIE = "diminson_date_format";
+
+export function formatDate(
+  value: Date | string,
+  fmt: DateFormat = "br",
+): string {
   const date = typeof value === "string" ? parseISO(value) : value;
-  return format(date, "dd/MM/yyyy", { locale: ptBR });
+  return fmt === "iso"
+    ? format(date, "yyyy-MM-dd")
+    : format(date, "dd/MM/yyyy", { locale: ptBR });
+}
+
+export function formatDateTime(
+  value: Date | string,
+  fmt: DateFormat = "br",
+): string {
+  const date = typeof value === "string" ? parseISO(value) : value;
+  return fmt === "iso"
+    ? format(date, "yyyy-MM-dd HH:mm")
+    : format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+}
+
+/**
+ * Wrappers que forcam BR — usados em PDFs e laudos publicos que precisam
+ * ser estaveis independente da preferencia do usuario que clicou em
+ * "exportar".
+ */
+export function formatDateBR(value: Date | string): string {
+  return formatDate(value, "br");
 }
 
 export function formatDateTimeBR(value: Date | string): string {
-  const date = typeof value === "string" ? parseISO(value) : value;
-  return format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+  return formatDateTime(value, "br");
 }
 
 export function formatTimeBR(value: Date | string): string {

@@ -1,8 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth";
+import { getDateFormat } from "@/lib/date-format-server";
 import { CommandPalette } from "@/components/command-palette";
 import { ShortcutPanel } from "@/components/shortcut-panel";
+import { DateFormatToggle } from "./date-format-toggle";
 import { LogoutButton } from "./logout-button";
 import { SearchTrigger } from "./search-trigger";
 
@@ -12,6 +14,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   await requireSession();
+  const dateFormat = await getDateFormat();
 
   return (
     <div className="bp-grid flex min-h-screen flex-col">
@@ -39,6 +42,7 @@ export default async function AppLayout({
             >
               Empreendimentos
             </Link>
+            <DateFormatToggle current={dateFormat} />
             <LogoutButton />
           </nav>
         </div>
