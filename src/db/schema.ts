@@ -312,6 +312,6 @@ export const CATEGORIA_LABELS: Record<Categoria, string> = {
   HID: "Hidráulica",
   HVAC: "HVAC",
   PISCINA: "Piscina",
-  ASP: "Aspiração",
+  ASP: "Aspiração central",
   SIS: "Sistemas",
 };
