@@ -196,7 +196,7 @@ export default async function HomePage() {
                   d.isHoje ? "text-brand" : "text-muted-foreground",
                 )}
               >
-                {d.isHoje ? "HOJE" : DIA_SEMANA_LABEL[i]}
+                {DIA_SEMANA_LABEL[i]}
               </p>
               <p
                 className={cn(
@@ -214,15 +214,20 @@ export default async function HomePage() {
                     : "text-muted-foreground",
                 )}
               >
-                {d.n > 0 ? `${d.n} vist.` : "—"}
+                {d.n > 0 ? `${String(d.n).padStart(2, "0")} vist.` : "—"}
               </p>
             </div>
           ))}
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="space-y-3">
+      {/* Grade de 7 colunas pra bater com a "Agenda da semana" acima.
+          Pendencias span 4 (mais espaco pra descricao + prazo);
+          atividade span 3. Divisoria cai no limite QUI/SEX, alinhada
+          a uma borda de dia da semana em cima — nao mais no meio de
+          uma coluna. */}
+      <div className="grid gap-6 lg:grid-cols-7">
+        <section className="space-y-3 lg:col-span-4">
           <div className="flex items-center justify-between">
             <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
               Próximas pendências
@@ -279,7 +284,7 @@ export default async function HomePage() {
           )}
         </section>
 
-        <section className="space-y-3">
+        <section className="space-y-3 lg:col-span-3">
           <div className="flex items-center justify-between">
             <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
               Atividade recente
