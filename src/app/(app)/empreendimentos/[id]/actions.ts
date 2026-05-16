@@ -41,9 +41,11 @@ export async function createUnidadeAction(
 ): Promise<UnidadeFormState> {
   await requireMutation();
 
+  // Quick-add inline so envia `nome`; trata observacoes ausente como vazio
+  // (FormData.get retorna null, e o schema aceita string/optional, nao null).
   const parsed = unidadeSchema.safeParse({
     nome: formData.get("nome"),
-    observacoes: formData.get("observacoes"),
+    observacoes: formData.get("observacoes") ?? "",
   });
 
   if (!parsed.success) {
