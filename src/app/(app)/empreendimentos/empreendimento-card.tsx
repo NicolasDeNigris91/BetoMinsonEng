@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Building2 } from "lucide-react";
 import { CATEGORIA_LABELS, type Categoria } from "@/db/schema";
 import { CATEGORIA_DOT } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
@@ -150,7 +149,7 @@ export function EmpreendimentoCard({ view }: Props) {
   return (
     <div
       className={cn(
-        "relative flex h-full flex-col overflow-hidden rounded-xl border bg-card transition-all hover:-translate-y-0.5 hover:shadow-md focus-within:ring-2 focus-within:ring-ring",
+        "relative h-full overflow-hidden rounded-xl border bg-card transition-all hover:-translate-y-0.5 hover:shadow-md focus-within:ring-2 focus-within:ring-ring",
         isEmpty && "border-dashed bg-card/70",
       )}
     >
@@ -188,11 +187,11 @@ export function EmpreendimentoCard({ view }: Props) {
       </div>
 
       {isEmpty ? (
-        <div className="relative z-[1] flex flex-1 flex-col items-center justify-center gap-2 px-5 py-4 text-center pointer-events-none">
+        <div className="relative z-[1] pointer-events-none">
           <EmptyBody />
         </div>
       ) : (
-        <div className="relative z-[1] flex-1 pointer-events-none">
+        <div className="relative z-[1] pointer-events-none">
           <CategoriaChips
             abertosPorCategoria={view.abertosPorCategoria}
             hasAchados={view.nAbertos + view.nResolvidos > 0}
@@ -224,19 +223,19 @@ export function EmpreendimentoCard({ view }: Props) {
 
 function EmptyBody() {
   return (
-    <>
+    <div className="flex flex-col gap-2 px-5 pt-2 pb-4">
       <span
         aria-hidden
-        className="inline-flex size-10 items-center justify-center rounded-md border border-dashed border-brand/40 bg-brand/5 text-brand"
+        className="inline-flex size-9 items-center justify-center rounded-md border border-dashed border-brand/40 bg-brand/5 text-brand"
       >
-        <Building2 className="size-5" strokeWidth={1.5} />
+        ▢
       </span>
-      <p className="max-w-[28ch] text-xs leading-relaxed text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         <strong className="text-foreground">Sem unidades cadastradas.</strong>
         <br />
         Adicione as primeiras pra começar a registrar vistorias.
       </p>
-    </>
+    </div>
   );
 }
 

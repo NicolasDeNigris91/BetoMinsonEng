@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, asc, count, sql } from "drizzle-orm";
-import { FileText, Plus, StickyNote } from "lucide-react";
+import { FileText, Home, Pencil, Plus, Trash2 } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
+import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { db } from "@/db";
 import { achados, empreendimentos, unidades, vistorias } from "@/db/schema";
 import { formatDateBR } from "@/lib/format";
@@ -11,9 +13,9 @@ import {
   ACTIVITY_STRIPE,
   activityStatus,
 } from "@/lib/category-styles";
+import { EmpreendimentoFormDialog } from "../empreendimento-form";
+import { deleteEmpreendimentoAction } from "../actions";
 import { UnidadeFormDialog } from "./unidade-form";
-import { UnidadeQuickAdd } from "./unidade-quick-add";
-import { HeaderActionsMenu } from "./header-actions-menu";
 import { RelatorioEvolucaoDialog } from "./relatorio-evolucao-dialog";
 
 export const dynamic = "force-dynamic";
@@ -84,16 +86,6 @@ export default async function EmpreendimentoDetailPage({
   );
   const ultimaPor = new Map(ultimasRows.map((r) => [r.unidadeId, r.data]));
 
-  const totalAbertos = Array.from(abertosPor.values()).reduce(
-    (s, n) => s + n,
-    0,
-  );
-  const totalGeral = Array.from(totalAchadosPor.values()).reduce(
-    (s, n) => s + n,
-    0,
-  );
-  const totalResolvidos = totalGeral - totalAbertos;
-
   return (
     <div className="space-y-6">
       <Breadcrumb
@@ -104,47 +96,22 @@ export default async function EmpreendimentoDetailPage({
       />
 
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
+        <div>
           <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
             {emp.nome}
           </h1>
-          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-            {emp.cliente ? (
-              <>
-                <dt className="self-center font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground">
-                  Cliente
-                </dt>
-                <dd className="text-foreground">{emp.cliente}</dd>
-              </>
-            ) : null}
-            {emp.endereco ? (
-              <>
-                <dt className="self-center font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground">
-                  Endereço
-                </dt>
-                <dd className="text-foreground">{emp.endereco}</dd>
-              </>
-            ) : null}
-            {emp.observacoes ? (
-              <>
-                <dt className="self-start pt-1.5 font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <StickyNote className="size-3" />
-                    Notas
-                  </span>
-                </dt>
-                <dd className="rounded-md bg-muted/40 px-2.5 py-1.5 text-sm whitespace-pre-line text-foreground/90">
-                  {emp.observacoes}
-                </dd>
-              </>
-            ) : null}
-          </dl>
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            {emp.cliente ? <span>Cliente: {emp.cliente}</span> : null}
+            {emp.endereco ? <span>{emp.endereco}</span> : null}
+          </div>
+          {emp.observacoes ? (
+            <p className="mt-2 text-sm whitespace-pre-line">{emp.observacoes}</p>
+          ) : null}
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex gap-2">
           <Button
             variant="outline"
             size="sm"
-            title="PDF consolidado de todas as vistorias do empreendimento"
             render={
               <a
                 href={`/api/pdf/consolidado/${emp.id}`}
@@ -157,56 +124,63 @@ export default async function EmpreendimentoDetailPage({
             Consolidado
           </Button>
           <RelatorioEvolucaoDialog empreendimentoId={emp.id} />
-          <HeaderActionsMenu empreendimento={emp} />
+          <EmpreendimentoFormDialog
+            empreendimento={emp}
+            trigger={
+              <Button variant="outline" size="sm">
+                <Pencil className="mr-1.5 size-4" />
+                Editar
+              </Button>
+            }
+          />
+          <ConfirmDialog
+            title="Excluir empreendimento?"
+            description="Todos os dados (unidades, vistorias, achados, fotos) serão removidos permanentemente."
+            confirmLabel="Excluir tudo"
+            destructive
+            onConfirm={deleteEmpreendimentoAction.bind(null, emp.id)}
+            trigger={
+              <Button variant="ghost" size="sm" aria-label="Excluir empreendimento">
+                <Trash2 className="size-4" />
+              </Button>
+            }
+          />
         </div>
       </div>
 
       <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-baseline gap-3">
-            <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
-              Unidades
-            </h2>
-            {lista.length > 0 ? (
-              <span className="font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
-                <span className="tabular-nums text-foreground">
-                  {String(lista.length).padStart(2, "0")}
-                </span>{" "}
-                {lista.length === 1 ? "unidade" : "unidades"} ·{" "}
-                <span className="tabular-nums text-amber-700 dark:text-amber-300">
-                  {String(totalAbertos).padStart(2, "0")}
-                </span>{" "}
-                abertos
-                {totalResolvidos > 0 ? (
-                  <>
-                    {" "}
-                    ·{" "}
-                    <span className="tabular-nums text-emerald-700 dark:text-emerald-300">
-                      {String(totalResolvidos).padStart(2, "0")}
-                    </span>{" "}
-                    resolvidos
-                  </>
-                ) : null}
-              </span>
-            ) : null}
-          </div>
-          {/* CTA do topo so aparece quando ja existem unidades. Quando vazio,
-              o quick-add inline e a unica acao primaria, sem duplicacao. */}
-          {lista.length > 0 ? (
-            <UnidadeFormDialog
-              empreendimentoId={emp.id}
-              trigger={
-                <Button size="sm">
-                  <Plus className="mr-1.5 size-4" />
-                  Nova unidade
-                </Button>
-              }
-            />
-          ) : null}
+        <div className="flex items-center justify-between">
+          <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
+            Unidades
+          </h2>
+          <UnidadeFormDialog
+            empreendimentoId={emp.id}
+            trigger={
+              <Button size="sm">
+                <Plus className="mr-1.5 size-4" />
+                Nova unidade
+              </Button>
+            }
+          />
         </div>
 
         {lista.length === 0 ? (
-          <UnidadeQuickAdd empreendimentoId={emp.id} />
+          <EmptyState
+            icon={Home}
+            eyebrow="Sem unidades cadastradas"
+            description="Adicione a primeira unidade pra começar a registrar vistorias."
+            action={
+              <UnidadeFormDialog
+                empreendimentoId={emp.id}
+                trigger={
+                  <Button size="sm">
+                    <Plus className="mr-1.5 size-4" />
+                    Adicionar unidade
+                  </Button>
+                }
+              />
+            }
+          />
         ) : (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {lista.map((un) => {

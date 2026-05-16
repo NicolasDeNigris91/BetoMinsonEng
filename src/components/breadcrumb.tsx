@@ -13,7 +13,7 @@ export function Breadcrumb({ items }: { items: Item[] }) {
   return (
     <nav
       aria-label="Breadcrumb"
-      className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground"
     >
       {items.map((item, i) => {
         const isLast = i === items.length - 1;
