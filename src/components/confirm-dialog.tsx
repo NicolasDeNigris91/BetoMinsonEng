@@ -15,12 +15,14 @@ import { toast } from "sonner";
 import { isNextRedirectError } from "@/lib/next-errors";
 
 type Props = {
-  trigger: React.ReactElement;
+  trigger?: React.ReactElement;
   title: string;
   description?: string;
   confirmLabel?: string;
   destructive?: boolean;
   onConfirm: () => Promise<void> | void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 export function ConfirmDialog({
@@ -30,8 +32,16 @@ export function ConfirmDialog({
   confirmLabel = "Confirmar",
   destructive = false,
   onConfirm,
+  open: controlledOpen,
+  onOpenChange,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   const [pending, start] = useTransition();
 
   const handleConfirm = () => {
@@ -48,7 +58,7 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={trigger} />
+      {trigger ? <DialogTrigger render={trigger} /> : null}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
