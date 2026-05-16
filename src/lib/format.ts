@@ -11,6 +11,11 @@ export function formatDateTimeBR(value: Date | string): string {
   return format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
 }
 
+export function formatTimeBR(value: Date | string): string {
+  const date = typeof value === "string" ? parseISO(value) : value;
+  return format(date, "HH:mm", { locale: ptBR });
+}
+
 export function todayISO(): string {
   return format(new Date(), "yyyy-MM-dd");
 }
