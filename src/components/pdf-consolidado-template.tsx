@@ -56,13 +56,13 @@ const STRIPE_COLOR: Record<Categoria, string> = {
   SIS: "#64748b",
 };
 
-const BADGE: Record<Categoria, { bg: string; border: string; text: string }> = {
-  ELE: { bg: "#fef9c3", border: "#fcd34d", text: "#713f12" },
-  HID: { bg: "#dbeafe", border: "#93c5fd", text: "#1e3a8a" },
-  HVAC: { bg: "#e0f2fe", border: "#7dd3fc", text: "#0c4a6e" },
-  PISCINA: { bg: "#ccfbf1", border: "#5eead4", text: "#134e4a" },
-  ASP: { bg: "#ede9fe", border: "#c4b5fd", text: "#4c1d95" },
-  SIS: { bg: "#f1f5f9", border: "#cbd5e1", text: "#0f172a" },
+const BADGE: Record<Categoria, { border: string; text: string }> = {
+  ELE: { border: "#fcd34d", text: "#713f12" },
+  HID: { border: "#93c5fd", text: "#1e3a8a" },
+  HVAC: { border: "#7dd3fc", text: "#0c4a6e" },
+  PISCINA: { border: "#5eead4", text: "#134e4a" },
+  ASP: { border: "#c4b5fd", text: "#4c1d95" },
+  SIS: { border: "#cbd5e1", text: "#0f172a" },
 };
 
 // Ordem fixa pros chips ficarem consistentes entre unidades.

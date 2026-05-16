@@ -77,40 +77,25 @@ const STRIPE_COLOR: Record<Categoria, string> = {
   SIS: "#64748b",
 };
 
-const BADGE: Record<Categoria, { bg: string; border: string; text: string }> = {
-  ELE: { bg: "#fef9c3", border: "#fcd34d", text: "#713f12" },
-  HID: { bg: "#dbeafe", border: "#93c5fd", text: "#1e3a8a" },
-  HVAC: { bg: "#e0f2fe", border: "#7dd3fc", text: "#0c4a6e" },
-  PISCINA: { bg: "#ccfbf1", border: "#5eead4", text: "#134e4a" },
-  ASP: { bg: "#ede9fe", border: "#c4b5fd", text: "#4c1d95" },
-  SIS: { bg: "#f1f5f9", border: "#cbd5e1", text: "#0f172a" },
+const BADGE: Record<Categoria, { border: string; text: string }> = {
+  ELE: { border: "#fcd34d", text: "#713f12" },
+  HID: { border: "#93c5fd", text: "#1e3a8a" },
+  HVAC: { border: "#7dd3fc", text: "#0c4a6e" },
+  PISCINA: { border: "#5eead4", text: "#134e4a" },
+  ASP: { border: "#c4b5fd", text: "#4c1d95" },
+  SIS: { border: "#cbd5e1", text: "#0f172a" },
 };
 
-function eventoBadge(tipo: EventoTipo): { label: string; bg: string; border: string; text: string } | null {
+function eventoBadge(tipo: EventoTipo): { label: string; border: string; text: string } | null {
   switch (tipo) {
     case "criado":
       return null;
     case "persiste":
-      return {
-        label: "PERSISTE",
-        bg: "#fef3c7",
-        border: "#fcd34d",
-        text: "#78350f",
-      };
+      return { label: "PERSISTE", border: "#fcd34d", text: "#78350f" };
     case "resolvido":
-      return {
-        label: "RESOLVIDO",
-        bg: "#d1fae5",
-        border: "#6ee7b7",
-        text: "#064e3b",
-      };
+      return { label: "RESOLVIDO", border: "#6ee7b7", text: "#064e3b" };
     case "nota":
-      return {
-        label: "ANOTAÇÃO",
-        bg: "#e0e7ff",
-        border: "#a5b4fc",
-        text: "#312e81",
-      };
+      return { label: "ANOTAÇÃO", border: "#a5b4fc", text: "#312e81" };
   }
 }
 
