@@ -124,7 +124,7 @@ export default async function MobileUploadPage({
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <header className="bg-background border-b">
+      <header className="border-t-2 border-t-foreground border-b bg-background">
         <div className="mx-auto max-w-2xl px-4 py-4 space-y-2">
           <Image
             src="/logo-diminson.png"

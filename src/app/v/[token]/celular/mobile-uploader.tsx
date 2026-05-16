@@ -9,7 +9,7 @@ import { PhotoEditor } from "@/components/photo-editor";
 import { CATEGORIA_LABELS, type Categoria } from "@/db/schema";
 import { usePhotoUpload } from "@/lib/use-photo-upload";
 import {
-  CATEGORIA_BADGE_CLASS,
+  CATEGORIA_BADGE_OUTLINE_CLASS,
   CATEGORIA_STRIPE_BORDER,
 } from "@/lib/category-styles";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,7 @@ type Props = {
 export function MobileUploader({ token, items }: Props) {
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border bg-background p-6 text-center text-sm text-muted-foreground">
+      <div className="border bg-background p-6 text-center text-sm text-muted-foreground">
         Nenhum achado nesta vistoria ainda. Crie achados pelo desktop antes de
         subir fotos.
       </div>
@@ -112,7 +112,7 @@ function MobileUploadCard({ item, token }: { item: Item; token: string }) {
   return (
     <li
       className={cn(
-        "rounded-lg border border-l-4 bg-background p-4 space-y-3 shadow-sm",
+        "border border-l-4 bg-background p-4 space-y-3",
         CATEGORIA_STRIPE_BORDER[item.categoria],
       )}
     >
@@ -120,7 +120,10 @@ function MobileUploadCard({ item, token }: { item: Item; token: string }) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge
             variant="outline"
-            className={cn("font-mono text-xs", CATEGORIA_BADGE_CLASS[item.categoria])}
+            className={cn(
+              "font-mono text-xs bg-transparent",
+              CATEGORIA_BADGE_OUTLINE_CLASS[item.categoria],
+            )}
           >
             {CATEGORIA_LABELS[item.categoria]}
           </Badge>
@@ -132,17 +135,19 @@ function MobileUploadCard({ item, token }: { item: Item; token: string }) {
       </div>
 
       {item.fotos.length > 0 || recentCount > 0 ? (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 border-t border-dashed pt-2 font-mono text-[11px] tracking-[0.04em] text-muted-foreground tabular-nums">
           {recentCount > 0 ? (
-            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-              <Check className="size-3.5" />
-              +{recentCount} nova{recentCount === 1 ? "" : "s"} nesta sessão
+            <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+              <Check className="size-3" aria-hidden />
+              +{String(recentCount).padStart(2, "0")} nesta sessao
             </span>
+          ) : null}
+          {recentCount > 0 && item.fotos.length > 0 ? (
+            <span className="text-muted-foreground/40">·</span>
           ) : null}
           {item.fotos.length > 0 ? (
             <span>
-              {item.fotos.length} foto{item.fotos.length === 1 ? "" : "s"} já no
-              achado
+              {String(item.fotos.length).padStart(2, "0")} ja no achado
             </span>
           ) : null}
         </div>
@@ -202,7 +207,7 @@ function MobileUploadCard({ item, token }: { item: Item; token: string }) {
           ) : (
             <ImagePlus className="mr-1.5 size-4" />
           )}
-          Da galeria
+          Galeria
         </Button>
         <Button
           type="button"

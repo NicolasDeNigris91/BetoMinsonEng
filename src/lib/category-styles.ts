@@ -19,6 +19,18 @@ export const CATEGORIA_BADGE_CLASS: Record<Categoria, string> = {
   SIS: "border-slate-300 bg-slate-100 text-slate-900 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-200",
 };
 
+/** Variante sem fundo — so borda e texto. Usada em superficies de alta
+ *  densidade (modo celular) onde o fundo pastel pesa demais visualmente. */
+export const CATEGORIA_BADGE_OUTLINE_CLASS: Record<Categoria, string> = {
+  ELE: "border-yellow-400 text-yellow-900 dark:border-yellow-700 dark:text-yellow-200",
+  HID: "border-blue-400 text-blue-900 dark:border-blue-700 dark:text-blue-200",
+  HVAC: "border-sky-400 text-sky-900 dark:border-sky-700 dark:text-sky-200",
+  PISCINA:
+    "border-teal-400 text-teal-900 dark:border-teal-700 dark:text-teal-200",
+  ASP: "border-violet-400 text-violet-900 dark:border-violet-700 dark:text-violet-200",
+  SIS: "border-slate-400 text-slate-900 dark:border-slate-700 dark:text-slate-200",
+};
+
 /** Faixa colorida lateral nos cards de achado (item 4 da estilizacao). */
 export const CATEGORIA_STRIPE_BORDER: Record<Categoria, string> = {
   ELE: "border-l-yellow-400 dark:border-l-yellow-500",
