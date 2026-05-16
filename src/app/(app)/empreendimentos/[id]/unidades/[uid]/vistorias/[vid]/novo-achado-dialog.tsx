@@ -6,7 +6,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -29,6 +28,7 @@ import {
   type Categoria,
 } from "@/db/schema";
 import { CATEGORIA_DOT } from "@/lib/category-styles";
+import { useShortcut } from "@/lib/use-shortcut";
 import { cn } from "@/lib/utils";
 import {
   createAchadoAction,
@@ -98,6 +98,12 @@ export function AchadoFormDialog({
     setDescricao(t.descricao);
   };
 
+  // Atalho "n" abre o dialog de novo achado. So registramos no modo
+  // create — a versao de edit nao deve abrir nem por engano.
+  useShortcut("n", () => setOpen(true), {
+    enabled: !isEdit && !open,
+  });
+
   const visibleTemplates =
     !isEdit && templates.length > 0
       ? showAllTemplates
@@ -120,15 +126,15 @@ export function AchadoFormDialog({
           )
         }
       />
-      <DialogContent>
+      <DialogContent className="rounded-none border-t-2 border-t-foreground">
         <DialogHeader>
-          <DialogTitle>
-            {isEdit ? "Editar achado" : "Novo achado nesta vistoria"}
+          <DialogTitle className="font-mono text-[10px] font-semibold tracking-[0.08em] uppercase text-muted-foreground">
+            {isEdit ? "Editar achado" : "Novo achado"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="-mt-1 text-[20px] font-extrabold leading-tight tracking-[-0.01em] text-foreground">
             {isEdit
-              ? "Ajustes em descrição, local e matéria."
-              : "Categoria, local e descrição do que foi encontrado."}
+              ? "Ajustar descrição, local e matéria"
+              : "Categoria, local e descrição"}
           </DialogDescription>
         </DialogHeader>
 
@@ -137,62 +143,62 @@ export function AchadoFormDialog({
             <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground">
               Templates frequentes
             </p>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <ul className="border-y">
               {visibleTemplates.map((t, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => applyTemplate(t)}
-                  disabled={pending}
-                  className="group flex items-start gap-2 rounded-md border bg-card p-2 text-left transition-colors hover:border-brand/40 hover:bg-brand/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      "mt-1 inline-block size-2 shrink-0 rounded-full",
-                      CATEGORIA_DOT[t.categoria],
-                    )}
-                  />
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    {t.local ? (
-                      <p className="truncate text-xs font-medium">{t.local}</p>
-                    ) : (
-                      <p className="truncate text-xs font-medium text-muted-foreground">
-                        {CATEGORIA_LABELS[t.categoria]}
-                      </p>
-                    )}
-                    <p className="line-clamp-2 text-[11px] text-muted-foreground">
-                      {t.descricao}
-                    </p>
-                    <p className="font-mono text-[9px] tracking-[0.06em] text-muted-foreground/70">
-                      usado {String(t.uso).padStart(2, "0")}×
-                    </p>
-                  </div>
-                </button>
+                <li key={i}>
+                  <button
+                    type="button"
+                    onClick={() => applyTemplate(t)}
+                    disabled={pending}
+                    className="grid w-full grid-cols-[10px_1fr_auto] items-baseline gap-3 border-b border-dashed py-1.5 text-left last:border-b-0 hover:bg-muted/40 focus:outline-none focus-visible:bg-muted/40 disabled:opacity-50"
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "size-2 shrink-0 self-center rounded-full",
+                        CATEGORIA_DOT[t.categoria],
+                      )}
+                    />
+                    <span className="min-w-0 text-xs">
+                      {t.local ? (
+                        <span className="font-semibold">{t.local}</span>
+                      ) : (
+                        <span className="font-semibold text-muted-foreground">
+                          {CATEGORIA_LABELS[t.categoria]}
+                        </span>
+                      )}
+                      <span className="text-muted-foreground">
+                        {" — "}
+                        {t.descricao}
+                      </span>
+                    </span>
+                    <span className="font-mono text-[9.5px] tracking-[0.04em] text-muted-foreground">
+                      {String(t.uso).padStart(2, "0")}×
+                    </span>
+                  </button>
+                </li>
               ))}
-            </div>
+            </ul>
             {hasMoreTemplates ? (
               <button
                 type="button"
                 onClick={() => setShowAllTemplates(true)}
-                className="text-xs text-muted-foreground hover:text-foreground"
+                className="font-mono text-[10px] tracking-[0.06em] uppercase text-muted-foreground hover:text-foreground"
               >
-                Ver mais {templates.length - 4} templates →
+                Ver mais {templates.length - 4} →
               </button>
             ) : null}
-            <div className="flex items-center gap-3 pt-1">
-              <div className="h-px flex-1 bg-border" />
-              <span className="font-mono text-[9px] tracking-[0.18em] uppercase text-muted-foreground/70">
-                ou criar manual
-              </span>
-              <div className="h-px flex-1 bg-border" />
-            </div>
           </div>
         ) : null}
 
         <form action={formAction} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="categoria">Matéria*</Label>
+            <Label
+              htmlFor="categoria"
+              className="font-mono text-[10px] tracking-[0.08em] uppercase text-muted-foreground"
+            >
+              Matéria
+            </Label>
             <Select
               name="categoria"
               value={categoria}
@@ -228,13 +234,18 @@ export function AchadoFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="local">Local</Label>
+            <Label
+              htmlFor="local"
+              className="font-mono text-[10px] tracking-[0.08em] uppercase text-muted-foreground"
+            >
+              Local
+            </Label>
             <Input
               id="local"
               name="local"
               value={local}
               onChange={(e) => setLocal(e.target.value)}
-              placeholder="Ex: Térreo - sala de estar"
+              placeholder="Térreo — sala de estar"
               disabled={pending}
             />
             {state.fieldErrors?.local ? (
@@ -243,7 +254,12 @@ export function AchadoFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="descricao">Descrição*</Label>
+            <Label
+              htmlFor="descricao"
+              className="font-mono text-[10px] tracking-[0.08em] uppercase text-muted-foreground"
+            >
+              Descrição
+            </Label>
             <Textarea
               id="descricao"
               name="descricao"
@@ -251,7 +267,7 @@ export function AchadoFormDialog({
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
               rows={5}
-              placeholder="O que foi encontrado, o que precisa ser feito..."
+              placeholder="O que foi encontrado, o que precisa ser feito"
               disabled={pending}
             />
             {state.fieldErrors?.descricao ? (
@@ -262,7 +278,12 @@ export function AchadoFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="prazoEm">Resolver até (opcional)</Label>
+            <Label
+              htmlFor="prazoEm"
+              className="font-mono text-[10px] tracking-[0.08em] uppercase text-muted-foreground"
+            >
+              Prazo
+            </Label>
             <Input
               id="prazoEm"
               name="prazoEm"
@@ -272,7 +293,7 @@ export function AchadoFormDialog({
               disabled={pending}
             />
             <p className="text-xs text-muted-foreground">
-              Achado fica marcado como atrasado depois desta data.
+              Vence em — passa a aparecer como atrasado.
             </p>
             {state.fieldErrors?.prazoEm ? (
               <p className="text-sm text-destructive">
@@ -285,7 +306,7 @@ export function AchadoFormDialog({
             <p className="text-sm text-destructive">{state.error}</p>
           ) : null}
 
-          <DialogFooter>
+          <div className="flex justify-end gap-2 pt-1">
             <Button
               type="button"
               variant="ghost"
@@ -295,9 +316,9 @@ export function AchadoFormDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={pending}>
-              {pending ? "Salvando..." : isEdit ? "Salvar" : "Criar achado"}
+              {pending ? "Salvando..." : "Salvar"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
