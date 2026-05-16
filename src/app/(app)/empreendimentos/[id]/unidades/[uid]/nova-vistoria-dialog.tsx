@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { todayISO } from "@/lib/format";
+import { useShortcut } from "@/lib/use-shortcut";
 import { createVistoriaAction, type NovaVistoriaState } from "./actions";
 
 export function NovaVistoriaDialog({
@@ -36,6 +37,8 @@ export function NovaVistoriaDialog({
     },
     {},
   );
+
+  useShortcut("n", () => setOpen(true), { enabled: !open });
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
