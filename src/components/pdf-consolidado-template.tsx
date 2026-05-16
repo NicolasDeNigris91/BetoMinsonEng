@@ -81,10 +81,10 @@ function prazoBadgeHtml(
 ): string {
   if (prazoKind === "none" || !prazoTexto) return "";
   const styles: Record<Exclude<typeof prazoKind, "none">, string> = {
-    atrasado: "background:#fee2e2;border-color:#fca5a5;color:#7f1d1d",
-    hoje: "background:#fed7aa;border-color:#fdba74;color:#7c2d12",
-    proximo: "background:#fef3c7;border-color:#fcd34d;color:#78350f",
-    futuro: "background:#f1f5f9;border-color:#cbd5e1;color:#475569",
+    atrasado: "border-color:#fca5a5;color:#7f1d1d",
+    hoje: "border-color:#fdba74;color:#7c2d12",
+    proximo: "border-color:#fcd34d;color:#78350f",
+    futuro: "border-color:#cbd5e1;color:#475569",
   };
   return `<span class="prazo-badge" style="${styles[prazoKind]}">${escapeHtml(prazoTexto)}</span>`;
 }
@@ -180,7 +180,7 @@ export function renderConsolidadoHtml(data: ConsolidadoData): string {
   </div>
   <div class="header-right">
     ${headerLogo}
-    <p class="tagline">VISTORIAS · INSPEÇÕES TÉCNICAS</p>
+    <p class="tagline">VISTORIAS TÉCNICAS</p>
   </div>
 </header>
 <div class="header-divider"></div>
@@ -244,10 +244,7 @@ body {
   margin: 0;
   padding: 0;
   line-height: 1.5;
-  background:
-    linear-gradient(rgba(15,30,58,0.025) 1px, transparent 1px) 0 0 / 24px 24px,
-    linear-gradient(90deg, rgba(15,30,58,0.025) 1px, transparent 1px) 0 0 / 24px 24px,
-    #fbfcfe;
+  background: #ffffff;
 }
 
 .mono, .stat-label, .stat-value, .eyebrow, .tagline, .stamp, .cat-badge,
@@ -306,6 +303,8 @@ body {
   font-weight: 700;
   font-size: 13pt;
   letter-spacing: -0.015em;
+  border-bottom: 2px solid #ff8000;
+  padding-bottom: 2px;
 }
 .tagline {
   margin: 0;
@@ -315,9 +314,8 @@ body {
   color: rgba(15,30,58,0.55);
 }
 .header-divider {
-  height: 2px;
-  background: linear-gradient(90deg, transparent 0%, #ff8000 50%, transparent 100%);
-  opacity: 0.7;
+  height: 1px;
+  background: #0f1e3a;
   margin-bottom: 16px;
 }
 
@@ -330,7 +328,7 @@ body {
 .stat {
   background: #fff;
   border: 1px solid rgba(15,30,58,0.18);
-  border-radius: 4px;
+  border-radius: 0;
   padding: 10px 12px;
 }
 .stat-label {
@@ -343,7 +341,7 @@ body {
 }
 .stat-value {
   margin: 2px 0 0;
-  font-size: 22pt;
+  font-size: 26pt;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -368,20 +366,20 @@ body {
   border-collapse: collapse;
   background: #fff;
   border: 1px solid rgba(15,30,58,0.18);
-  border-radius: 4px;
+  border-radius: 0;
   overflow: hidden;
   margin-bottom: 8px;
   font-size: 9.5pt;
 }
 .kpi-table th {
   text-align: left;
-  background: #f8fafc;
+  background: #0f1e3a;
   padding: 8px 12px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 8pt;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(15,30,58,0.6);
+  color: rgba(255,255,255,0.85);
   font-weight: 600;
   border-bottom: 1px solid rgba(15,30,58,0.12);
 }
@@ -397,7 +395,8 @@ body {
 .unidade-bloco {
   background: #fff;
   border: 1px solid rgba(15,30,58,0.18);
-  border-radius: 4px;
+  border-top: 2px solid #0f1e3a;
+  border-radius: 0;
   margin-bottom: 10px;
   overflow: hidden;
   page-break-inside: avoid;
@@ -409,8 +408,8 @@ body {
   justify-content: space-between;
   gap: 8px;
   padding: 10px 14px;
-  border-bottom: 1px dashed rgba(15,30,58,0.18);
-  background: #f8fafc;
+  border-bottom: 1px solid rgba(15,30,58,0.18);
+  background: #ffffff;
 }
 .unidade-titulo {
   font-size: 11pt;
