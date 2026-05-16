@@ -88,6 +88,18 @@ async function fetchDashboardData(seteDiasAtrasISO: string) {
   const quatorzeDiasAtras = new Date(seteDiasAtras.getTime() - SETE_DIAS_MS);
   const hojeISO = agora.toISOString().slice(0, 10);
 
+  // Janela "semana atual" pra agenda — segunda a domingo (BR).
+  // getDay(): 0=dom, 1=seg, ..., 6=sab
+  const diaSemana = agora.getDay();
+  const diasDesdeSegunda = diaSemana === 0 ? 6 : diaSemana - 1;
+  const inicioSemana = new Date(agora);
+  inicioSemana.setHours(0, 0, 0, 0);
+  inicioSemana.setDate(agora.getDate() - diasDesdeSegunda);
+  const fimSemana = new Date(inicioSemana);
+  fimSemana.setDate(inicioSemana.getDate() + 7);
+  const inicioSemanaISO = inicioSemana.toISOString().slice(0, 10);
+  const fimSemanaISO = fimSemana.toISOString().slice(0, 10);
+
   const [
     [achadosAbertosTotal],
     [vistoriasSemana],
@@ -102,6 +114,8 @@ async function fetchDashboardData(seteDiasAtrasISO: string) {
     [achadosSemPrazoRow],
     achadosSemPrazo,
     atividade,
+    vistoriasDaSemanaRows,
+    [proximaVistoriaRow],
   ] = await Promise.all([
     db
       .select({ n: count() })
@@ -213,6 +227,39 @@ async function fetchDashboardData(seteDiasAtrasISO: string) {
       .orderBy(asc(empreendimentos.nome), asc(unidades.nome), asc(achados.createdAt))
       .limit(50),
     fetchAtividadeRecente(),
+    // Vistorias da semana atual (segunda-domingo) — alimenta a agenda compacta.
+    db
+      .select({ dataISO: vistorias.data, n: count() })
+      .from(vistorias)
+      .where(
+        and(
+          gte(vistorias.data, inicioSemanaISO),
+          lt(vistorias.data, fimSemanaISO),
+        ),
+      )
+      .groupBy(vistorias.data),
+    // Proxima vistoria agendada (data futura e ainda rascunho) — usada na
+    // "proxima acao sugerida" quando nao tem nada mais urgente.
+    db
+      .select({
+        dataISO: vistorias.data,
+        empreendimentoNome: empreendimentos.nome,
+        unidadeNome: unidades.nome,
+      })
+      .from(vistorias)
+      .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
+      .innerJoin(
+        empreendimentos,
+        eq(empreendimentos.id, unidades.empreendimentoId),
+      )
+      .where(
+        and(
+          eq(vistorias.status, "rascunho"),
+          gte(vistorias.data, hojeISO),
+        ),
+      )
+      .orderBy(asc(vistorias.data))
+      .limit(1),
   ]);
 
   const totalAbertos = Number(achadosAbertosTotal?.n ?? 0);
@@ -230,6 +277,32 @@ async function fetchDashboardData(seteDiasAtrasISO: string) {
   const deltaAbertos = totalCriados7d - totalResolvidos7d;
   const deltaVistorias = totalVistoriasSemana - totalVistoriasSemanaAnterior;
 
+  // Constroi mapa dataISO -> count pra agenda. Cada dia da semana atual
+  // aparece sempre (mesmo zerado), na ordem segunda → domingo.
+  const semanaCount = new Map<string, number>();
+  for (const r of vistoriasDaSemanaRows) {
+    semanaCount.set(r.dataISO, Number(r.n));
+  }
+  const semana: { dataISO: string; n: number; isHoje: boolean }[] = [];
+  for (let i = 0; i < 7; i++) {
+    const dia = new Date(inicioSemana);
+    dia.setDate(inicioSemana.getDate() + i);
+    const iso = dia.toISOString().slice(0, 10);
+    semana.push({
+      dataISO: iso,
+      n: semanaCount.get(iso) ?? 0,
+      isHoje: iso === hojeISO,
+    });
+  }
+
+  const proximaVistoria = proximaVistoriaRow
+    ? {
+        dataISO: proximaVistoriaRow.dataISO,
+        empreendimentoNome: proximaVistoriaRow.empreendimentoNome,
+        unidadeNome: proximaVistoriaRow.unidadeNome,
+      }
+    : null;
+
   return {
     totalAbertos,
     totalAtrasados,
@@ -243,6 +316,8 @@ async function fetchDashboardData(seteDiasAtrasISO: string) {
     proximasPendencias,
     achadosSemPrazo,
     atividade,
+    semana,
+    proximaVistoria,
   };
 }
 

@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { ArrowRight, Building2, ClipboardList } from "lucide-react";
-import { StatCard } from "@/components/stat-card";
+import { Building2, ClipboardList } from "lucide-react";
 import { PrazoBadge } from "@/components/prazo-badge";
 import { Button } from "@/components/ui/button";
 import { CATEGORIA_LABELS } from "@/db/schema";
 import { CATEGORIA_DOT } from "@/lib/category-styles";
+import { formatDateBR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getDashboardData } from "./dashboard-data";
 import { DashboardAtividade } from "./dashboard-activity";
@@ -34,74 +34,189 @@ export default async function HomePage() {
     proximasPendencias,
     achadosSemPrazo,
     atividade,
+    semana,
+    proximaVistoria,
   } = await getDashboardData(seteDiasAtrasISO);
 
+  // Sugestao de proxima acao — regra simples por prioridade:
+  //   1. Atrasados > 0 (sempre o mais urgente)
+  //   2. Rascunhos abertos (impede fechamento da operacao)
+  //   3. Proxima vistoria agendada (informativo)
+  //   4. Nada → omite o bloco
+  const nextAction =
+    totalAtrasados > 0
+      ? {
+          label: "Atrasados sem resolução",
+          msg: `${totalAtrasados} ${totalAtrasados === 1 ? "achado atrasado" : "achados atrasados"} pendente${totalAtrasados === 1 ? "" : "s"}.`,
+          linkLabel: "Ver atrasados →",
+          href: "/empreendimentos?sort=atrasados",
+        }
+      : totalRascunhos > 0
+        ? {
+            label: "Rascunhos abertos",
+            msg: `${totalRascunhos} ${totalRascunhos === 1 ? "vistoria em rascunho" : "vistorias em rascunho"} aguardando finalização.`,
+            linkLabel: "Ver empreendimentos →",
+            href: "/empreendimentos",
+          }
+        : proximaVistoria
+          ? {
+              label: "Próxima vistoria",
+              msg: `${formatDateBR(proximaVistoria.dataISO)} — ${proximaVistoria.empreendimentoNome} · ${proximaVistoria.unidadeNome}`,
+              linkLabel: null,
+              href: null,
+            }
+          : null;
+
+  const DIA_SEMANA_LABEL = ["SEG", "TER", "QUA", "QUI", "SEX", "SAB", "DOM"];
+
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
-            Painel
-          </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span>Visão geral das vistorias e pendências em aberto.</span>
-            <span className="font-mono text-[10px] tracking-[0.12em] uppercase text-muted-foreground/70 border-l border-border pl-2">
-              {String(totalEmp).padStart(2, "0")} emp ·{" "}
-              {String(totalUnid).padStart(2, "0")} un
-            </span>
-          </p>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
+          Painel
+        </h1>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
+          <span>
+            <span className="tabular-nums font-bold text-foreground">
+              {String(totalEmp).padStart(2, "0")}
+            </span>{" "}
+            {totalEmp === 1 ? "empreendimento" : "empreendimentos"}
+          </span>
+          <span>
+            <span className="tabular-nums font-bold text-foreground">
+              {String(totalUnid).padStart(2, "0")}
+            </span>{" "}
+            {totalUnid === 1 ? "unidade" : "unidades"}
+          </span>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          render={<Link href="/empreendimentos" />}
-        >
-          <Building2 className="mr-1.5 size-4" />
-          Empreendimentos
-          <ArrowRight className="ml-1.5 size-4" />
-        </Button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard
+      {/* Info-bar densa: 4 indicadores em linha horizontal com divider entre. */}
+      <div className="grid grid-cols-2 divide-x divide-y rounded-lg border bg-card md:grid-cols-4 md:divide-y-0">
+        <InfoCell
           label="Em aberto"
           value={totalAbertos}
-          tone="accent"
-          delta={deltaAbertos}
-          sublabel={
+          valueClass={totalAbertos > 0 ? "text-amber-700 dark:text-amber-300" : undefined}
+          sub={
             deltaAbertos === 0
-              ? "estável vs semana ant."
+              ? "estável vs 7d ant."
               : deltaAbertos > 0
                 ? `+${deltaAbertos} esta semana`
                 : `${deltaAbertos} esta semana`
           }
         />
-        <StatCard
+        <InfoCell
           label="Atrasados"
           value={totalAtrasados}
-          tone={totalAtrasados > 0 ? "danger" : "success"}
-          sublabel={
-            totalAtrasados > 0 ? "com prazo vencido" : "nenhum prazo vencido"
+          valueClass={
+            totalAtrasados > 0
+              ? "text-destructive"
+              : "text-emerald-700 dark:text-emerald-300"
           }
+          sub={totalAtrasados > 0 ? "prazo vencido" : "nenhum vencido"}
+          subClass={totalAtrasados > 0 ? "text-destructive" : undefined}
         />
-        <StatCard
+        <InfoCell
           label="Rascunhos"
           value={totalRascunhos}
-          tone={totalRascunhos > 0 ? "warning" : "default"}
-          sublabel={
-            totalRascunhos > 0
-              ? "vistorias não-finalizadas"
-              : "nenhum rascunho aberto"
+          valueClass={totalRascunhos > 0 ? "text-amber-700 dark:text-amber-300" : undefined}
+          sub={
+            totalRascunhos > 0 ? "aguardando finalizar" : "nenhum aberto"
           }
         />
-        <StatCard
-          label="Vistorias 7 dias"
+        <InfoCell
+          label="Vistorias 7d"
           value={totalVistoriasSemana}
-          delta={deltaVistorias}
-          positiveIsGood
-          sublabel="vs 7 dias anteriores"
+          sub={
+            deltaVistorias === 0
+              ? "estável vs 7d ant."
+              : deltaVistorias > 0
+                ? `+${deltaVistorias} vs 7d ant.`
+                : `${deltaVistorias} vs 7d ant.`
+          }
+          subClass={deltaVistorias > 0 ? "text-emerald-700 dark:text-emerald-300" : undefined}
         />
       </div>
+
+      {/* Proxima acao sugerida — destaque com border-left brand. Omite quando
+          nao ha nada urgente nem agenda. */}
+      {nextAction ? (
+        <div className="rounded-lg border border-l-4 border-l-brand bg-brand/[0.04] px-4 py-3">
+          <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-brand">
+            Próxima ação · {nextAction.label}
+          </p>
+          <p className="mt-1 text-sm">
+            {nextAction.msg}
+            {nextAction.href && nextAction.linkLabel ? (
+              <>
+                {" "}
+                <Link
+                  href={nextAction.href}
+                  className="font-medium text-brand underline-offset-2 hover:underline"
+                >
+                  {nextAction.linkLabel}
+                </Link>
+              </>
+            ) : null}
+          </p>
+        </div>
+      ) : null}
+
+      {/* Agenda da semana — 7 celulas compactas com contagem de vistorias por dia. */}
+      <section>
+        <div className="mb-2 flex items-baseline justify-between">
+          <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
+            Agenda da semana
+          </h2>
+          {proximaVistoria ? (
+            <span className="font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
+              próxima ·{" "}
+              <span className="tabular-nums text-foreground">
+                {formatDateBR(proximaVistoria.dataISO)}
+              </span>{" "}
+              · {proximaVistoria.empreendimentoNome} · {proximaVistoria.unidadeNome}
+            </span>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {semana.map((d, i) => (
+            <div
+              key={d.dataISO}
+              className={cn(
+                "rounded-md border bg-card p-2 text-center",
+                d.isHoje && "border-brand bg-brand/5",
+              )}
+            >
+              <p
+                className={cn(
+                  "font-mono text-[9px] tracking-[0.14em] uppercase",
+                  d.isHoje ? "text-brand" : "text-muted-foreground",
+                )}
+              >
+                {d.isHoje ? "HOJE" : DIA_SEMANA_LABEL[i]}
+              </p>
+              <p
+                className={cn(
+                  "font-tech text-base",
+                  d.isHoje && "font-bold text-brand",
+                )}
+              >
+                {d.dataISO.slice(8, 10)}
+              </p>
+              <p
+                className={cn(
+                  "mt-1 font-mono text-[10px] tabular-nums",
+                  d.n > 0
+                    ? "text-emerald-700 dark:text-emerald-300"
+                    : "text-muted-foreground",
+                )}
+              >
+                {d.n > 0 ? `${d.n} vist.` : "—"}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="space-y-3">
@@ -201,6 +316,41 @@ export default async function HomePage() {
         totalSemPrazo={totalSemPrazo}
         achadosSemPrazo={achadosSemPrazo}
       />
+    </div>
+  );
+}
+
+function InfoCell({
+  label,
+  value,
+  valueClass,
+  sub,
+  subClass,
+}: {
+  label: string;
+  value: number;
+  valueClass?: string;
+  sub: string;
+  subClass?: string;
+}) {
+  return (
+    <div className="px-4 py-3">
+      <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground">
+        {label}
+      </p>
+      <div className="mt-1 flex items-baseline gap-2">
+        <span className={cn("font-tech text-2xl", valueClass)}>
+          {String(value).padStart(2, "0")}
+        </span>
+        <span
+          className={cn(
+            "font-mono text-[10px] text-muted-foreground",
+            subClass,
+          )}
+        >
+          {sub}
+        </span>
+      </div>
     </div>
   );
 }
