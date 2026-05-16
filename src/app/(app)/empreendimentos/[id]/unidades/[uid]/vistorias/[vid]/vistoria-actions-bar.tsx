@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useUploadInFlight } from "@/lib/upload-in-flight";
+import { useShortcut } from "@/lib/use-shortcut";
 import { isNextRedirectError } from "@/lib/next-errors";
 import { toast } from "sonner";
 import {
@@ -35,6 +36,7 @@ export function VistoriaActionsBar({
 }) {
   const [pending, start] = useTransition();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [finalizeOpen, setFinalizeOpen] = useState(false);
   // Bloqueia Finalizar/Excluir enquanto há upload em voo — caso contrário,
   // a vistoria fecha (status=finalizada) e a foto que ainda está sendo
   // processada pelo Sharp acaba rejeitada com 409 ou salva órfã.
@@ -97,6 +99,17 @@ export function VistoriaActionsBar({
       });
     });
 
+  // Atalho Cmd+Enter abre o dialog de finalizar quando vistoria esta em
+  // rascunho. So abre — a confirmacao em si continua sendo Enter no botao
+  // do dialog. Preserva a rede de seguranca contra finalizacao acidental.
+  useShortcut(
+    "Enter",
+    () => {
+      if (!pending && !uploading) setFinalizeOpen(true);
+    },
+    { meta: true, enabled: status === "rascunho" && !finalizeOpen },
+  );
+
   return (
     <>
       <div className="flex flex-wrap gap-2">
@@ -106,6 +119,8 @@ export function VistoriaActionsBar({
             description="Após finalizar, ela fica em modo somente leitura. Você pode reabrir a qualquer momento."
             confirmLabel="Finalizar"
             onConfirm={finalize}
+            open={finalizeOpen}
+            onOpenChange={setFinalizeOpen}
             trigger={
               <Button
                 size="sm"

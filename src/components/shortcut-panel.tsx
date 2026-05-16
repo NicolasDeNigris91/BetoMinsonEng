@@ -20,11 +20,17 @@ const SHORTCUTS = [
   },
   {
     group: "Na vistoria",
-    items: [{ label: "Novo achado", keys: ["n"] }],
+    items: [
+      { label: "Novo achado", keys: ["n"] },
+      { label: "Finalizar vistoria (rascunho)", keys: ["⌘", "Enter"] },
+    ],
   },
   {
     group: "Na unidade",
-    items: [{ label: "Nova vistoria", keys: ["n"] }],
+    items: [
+      { label: "Nova vistoria", keys: ["n"] },
+      { label: "Ver histórico", keys: ["h"] },
+    ],
   },
 ];
 

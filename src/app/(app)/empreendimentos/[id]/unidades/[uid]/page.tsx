@@ -37,6 +37,7 @@ import {
 import { cn } from "@/lib/utils";
 import { NovaVistoriaDialog } from "./nova-vistoria-dialog";
 import { UnidadeActionsMenu } from "./unidade-actions-menu";
+import { UnidadeShortcuts } from "./unidade-shortcuts";
 import {
   UnidadeFilters,
   type StatusFilter,
@@ -364,6 +365,9 @@ export default async function UnidadeDetailPage({
 
   return (
     <div className="space-y-6">
+      <UnidadeShortcuts
+        historicoHref={`/empreendimentos/${id}/unidades/${unidade.id}/historico`}
+      />
       <Breadcrumb
         items={[
           { label: "Empreendimentos", href: "/empreendimentos" },
