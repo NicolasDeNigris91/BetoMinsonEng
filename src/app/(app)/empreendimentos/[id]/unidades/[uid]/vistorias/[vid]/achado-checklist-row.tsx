@@ -73,7 +73,7 @@ export function AchadoChecklistRow({ vistoriaId, achado, evento }: Props) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-l-4 bg-card p-4 shadow-sm transition-all hover:-translate-y-px hover:shadow-md",
+        "border border-l-4 bg-card p-4",
         CATEGORIA_STRIPE_BORDER[achado.categoria],
         "data-[state=resolvido]:bg-emerald-500/5 data-[state=persiste]:bg-amber-500/5 data-[state=nota]:bg-muted/30",
       )}

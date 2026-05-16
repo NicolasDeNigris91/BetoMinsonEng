@@ -48,7 +48,7 @@ export function StatCard({
   };
 
   return (
-    <div className="rounded-lg border bg-card px-4 py-3">
+    <div className="border bg-card px-4 py-3">
       <p className="flex items-center justify-between gap-2 font-mono text-[10px] tracking-[0.14em] uppercase text-muted-foreground">
         <span>{label}</span>
         {delta != null ? <DeltaBadge delta={delta} positiveIsGood={positiveIsGood} /> : null}
