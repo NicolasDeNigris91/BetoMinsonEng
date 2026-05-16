@@ -12,7 +12,10 @@ function Dialog({ ...props }: DialogPrimitive.Root.Props) {
 }
 
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
+  // Sem `data-slot` aqui de proposito: quando usado com `render={<Button>}`,
+  // o slot do Button ('button') e o slot do wrapper colidiam, causando
+  // hydration mismatch (SSR vs CSR pegavam valores diferentes).
+  return <DialogPrimitive.Trigger {...props} />
 }
 
 function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
@@ -20,7 +23,8 @@ function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
 }
 
 function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
+  // Sem `data-slot` — mesmo motivo do DialogTrigger acima.
+  return <DialogPrimitive.Close {...props} />
 }
 
 function DialogOverlay({
@@ -61,7 +65,6 @@ function DialogContent({
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close
-            data-slot="dialog-close"
             render={
               <Button
                 variant="ghost"
