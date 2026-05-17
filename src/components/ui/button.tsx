@@ -1,3 +1,4 @@
+import { isValidElement } from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -45,12 +46,26 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  render,
+  nativeButton,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  // Base UI assume nativeButton=true por padrao. Quando o caller faz
+  // `render={<a/>}` ou `render={<Link/>}`, o elemento resultante deixa
+  // de ser <button> e o primitive grita warning. Desligamos automaticamente
+  // se o render explicito nao for um <button> nativo, preservando o
+  // comportamento padrao (true) quando nada e passado.
+  const inferredNativeButton =
+    nativeButton ??
+    (render == null
+      ? true
+      : isValidElement(render) && render.type === "button")
   return (
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      render={render}
+      nativeButton={inferredNativeButton}
       {...props}
     />
   )
