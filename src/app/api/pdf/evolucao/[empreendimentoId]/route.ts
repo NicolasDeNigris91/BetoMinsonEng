@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { and, asc, count, eq, gte, lte, sql } from "drizzle-orm";
-import { differenceInCalendarDays, parseISO } from "date-fns";
+import { differenceInCalendarDays } from "date-fns";
 import { db } from "@/db";
 import {
   achadoEventos,
@@ -14,7 +14,7 @@ import {
 } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
 import { readFileBuffer } from "@/lib/storage";
-import { formatDateBR, formatDateTimeBR } from "@/lib/format";
+import { formatDateBR, formatDateTimeBR, parseDateOnly } from "@/lib/format";
 import { renderHtmlToPdf } from "@/lib/pdf";
 import {
   renderEvolucaoHtml,
@@ -40,7 +40,7 @@ async function fileToDataUri(relativePath: string): Promise<string | null> {
 
 function parseDateParam(s: string | null): Date | null {
   if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
-  const d = parseISO(s);
+  const d = parseDateOnly(s);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 

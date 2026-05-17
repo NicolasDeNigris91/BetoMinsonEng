@@ -6,11 +6,29 @@ export type DateFormat = "br" | "iso";
 /** Nome do cookie que guarda a preferencia do usuario. */
 export const DATE_FORMAT_COOKIE = "diminson_date_format";
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Parse de "YYYY-MM-DD" como dia LOCAL — evita o deslize de fuso do
+ * parseISO (que interpretaria como meio-noite UTC e ficaria 1 dia
+ * antes em fuso negativo tipo BR). Colunas date do Drizzle (sem hora)
+ * tem que passar por aqui.
+ */
+export function parseDateOnly(str: string): Date {
+  const [y, m, d] = str.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function parseDateLike(value: Date | string): Date {
+  if (typeof value !== "string") return value;
+  return DATE_ONLY_RE.test(value) ? parseDateOnly(value) : parseISO(value);
+}
+
 export function formatDate(
   value: Date | string,
   fmt: DateFormat = "br",
 ): string {
-  const date = typeof value === "string" ? parseISO(value) : value;
+  const date = parseDateLike(value);
   return fmt === "iso"
     ? format(date, "yyyy-MM-dd")
     : format(date, "dd/MM/yyyy", { locale: ptBR });
@@ -20,7 +38,7 @@ export function formatDateTime(
   value: Date | string,
   fmt: DateFormat = "br",
 ): string {
-  const date = typeof value === "string" ? parseISO(value) : value;
+  const date = parseDateLike(value);
   return fmt === "iso"
     ? format(date, "yyyy-MM-dd HH:mm")
     : format(date, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
@@ -40,7 +58,7 @@ export function formatDateTimeBR(value: Date | string): string {
 }
 
 export function formatTimeBR(value: Date | string): string {
-  const date = typeof value === "string" ? parseISO(value) : value;
+  const date = parseDateLike(value);
   return format(date, "HH:mm", { locale: ptBR });
 }
 
@@ -61,7 +79,10 @@ export type PrazoState =
  */
 export function evaluatePrazo(prazoISO: string | null | undefined): PrazoState | null {
   if (!prazoISO) return null;
-  const prazo = parseISO(prazoISO);
+  // prazoEm e coluna `date` (sem hora). parseDateLike garante interpretacao
+  // local — caso contrario, em fuso BR (-3), o prazo "hoje" virava
+  // "atrasado ha 1 dia" entre 21h e 23h59.
+  const prazo = parseDateLike(prazoISO);
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
   const diff = differenceInCalendarDays(prazo, hoje);
