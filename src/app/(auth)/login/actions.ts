@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { login, passwordMatches } from "@/lib/auth";
+import { getClientIpFromHeaders } from "@/lib/client-ip";
 import { rateLimit } from "@/lib/rate-limit";
 
 const loginSchema = z.object({
@@ -20,9 +21,7 @@ const LOGIN_MAX_ATTEMPTS = 10;
 
 async function getClientKey(): Promise<string> {
   const h = await headers();
-  const xff = h.get("x-forwarded-for");
-  const ip = xff?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
-  return `login:${ip}`;
+  return `login:${getClientIpFromHeaders(h)}`;
 }
 
 export async function loginAction(

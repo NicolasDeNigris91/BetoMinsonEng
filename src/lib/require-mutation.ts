@@ -1,6 +1,7 @@
 import "server-only";
 import { headers } from "next/headers";
 import { getSession } from "./auth";
+import { getClientIpFromHeaders } from "./client-ip";
 import { redirect } from "next/navigation";
 import { rateLimit } from "./rate-limit";
 
@@ -27,10 +28,7 @@ async function mutationKey(): Promise<string> {
   // Sem sessão (não deveria chegar aqui — requireMutation chama
   // requireSession antes — mas defensivo): cai pro IP.
   const h = await headers();
-  const xff = h.get("x-forwarded-for");
-  const ip =
-    xff?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
-  return `mut:ip:${ip}`;
+  return `mut:ip:${getClientIpFromHeaders(h)}`;
 }
 
 /**

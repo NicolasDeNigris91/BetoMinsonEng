@@ -5,7 +5,7 @@ import {
   type IronSession,
   type SessionOptions,
 } from "iron-session";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { env } from "./env";
 
 export type SessionData = {
@@ -45,11 +45,11 @@ export async function requireSession(): Promise<IronSession<SessionData>> {
 }
 
 export function passwordMatches(input: string): boolean {
-  const expected = Buffer.from(env.APP_PASSWORD, "utf8");
-  const got = Buffer.from(input, "utf8");
-  if (expected.length !== got.length) {
-    return false;
-  }
+  // Hash dos dois lados antes de comparar. Buffer de 32 bytes garante
+  // mesmo tamanho — evita early-return em length que vazaria o tamanho
+  // exato da senha esperada via timing.
+  const expected = createHash("sha256").update(env.APP_PASSWORD, "utf8").digest();
+  const got = createHash("sha256").update(input, "utf8").digest();
   return timingSafeEqual(expected, got);
 }
 
