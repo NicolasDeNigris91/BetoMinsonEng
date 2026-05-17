@@ -45,7 +45,11 @@ export async function generateMetadata({
     .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
     .innerJoin(empreendimentos, eq(empreendimentos.id, unidades.empreendimentoId))
     .where(
-      and(eq(shareTokens.token, token), gt(shareTokens.expiraEm, new Date())),
+      and(
+        eq(shareTokens.token, token),
+        eq(shareTokens.permiteUpload, false),
+        gt(shareTokens.expiraEm, new Date()),
+      ),
     )
     .limit(1);
 
@@ -73,11 +77,18 @@ export default async function SharePage({
 }) {
   const { token } = await params;
 
+  // Tokens de upload (permiteUpload=true) so servem /v/[token]/celular —
+  // a vista completa de leitura e exclusiva de tokens de leitura, pra
+  // evitar que o link do mestre-de-obras vaze o PDF inteiro.
   const [share] = await db
     .select()
     .from(shareTokens)
     .where(
-      and(eq(shareTokens.token, token), gt(shareTokens.expiraEm, new Date())),
+      and(
+        eq(shareTokens.token, token),
+        eq(shareTokens.permiteUpload, false),
+        gt(shareTokens.expiraEm, new Date()),
+      ),
     )
     .limit(1);
 

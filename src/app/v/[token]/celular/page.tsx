@@ -73,14 +73,43 @@ export default async function MobileUploadPage({
   }
 
   if (vistoria.status === "finalizada") {
+    // Pode existir um token de leitura ativo pra mesma vistoria —
+    // entrega o link como saida em vez de deixar o cliente preso.
+    const [leitura] = await db
+      .select({ token: shareTokens.token })
+      .from(shareTokens)
+      .where(
+        and(
+          eq(shareTokens.vistoriaId, vistoria.id),
+          eq(shareTokens.permiteUpload, false),
+          gt(shareTokens.expiraEm, new Date()),
+        ),
+      )
+      .limit(1);
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
-        <div className="max-w-sm text-center">
+        <div className="max-w-sm text-center flex flex-col items-center gap-3">
+          <Image
+            src="/logo-diminson.png"
+            alt="DiMinson Engenharia"
+            width={300}
+            height={96}
+            priority
+            className="h-10 w-auto mb-2"
+          />
           <h1 className="text-lg font-semibold">Vistoria finalizada</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Não é possível adicionar fotos a uma vistoria finalizada. Reabra
-            pelo desktop antes de continuar.
+          <p className="text-sm text-muted-foreground">
+            Não é possível adicionar fotos a uma vistoria finalizada. A
+            engenharia precisa reabrir pelo desktop antes de continuar.
           </p>
+          {leitura ? (
+            <a
+              href={`/v/${leitura.token}`}
+              className="mt-2 inline-block rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-muted"
+            >
+              Ver relatório da vistoria
+            </a>
+          ) : null}
         </div>
       </div>
     );

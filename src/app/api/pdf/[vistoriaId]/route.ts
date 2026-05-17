@@ -32,11 +32,18 @@ async function isAuthorized(
 ): Promise<boolean> {
   if (await isLoggedIn()) return true;
   if (!token) return false;
+  // Token de upload (permiteUpload=true) e destinado ao celular do
+  // mestre-de-obras; nao deve servir como link de leitura do PDF inteiro
+  // pra cliente externo. Restringe a leitura do PDF a tokens de leitura.
   const [row] = await db
     .select({ vistoriaId: shareTokens.vistoriaId })
     .from(shareTokens)
     .where(
-      and(eq(shareTokens.token, token), gt(shareTokens.expiraEm, new Date())),
+      and(
+        eq(shareTokens.token, token),
+        eq(shareTokens.permiteUpload, false),
+        gt(shareTokens.expiraEm, new Date()),
+      ),
     )
     .limit(1);
   return Boolean(row && row.vistoriaId === vistoriaId);
