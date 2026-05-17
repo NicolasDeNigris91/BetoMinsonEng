@@ -60,7 +60,7 @@ export function SharePanel({ vistoriaId, baseUrl, tokens, dateFmt }: Props) {
     new Promise<void>((resolve) => {
       start(async () => {
         try {
-          await revokeShareTokenAction(tokenId);
+          await revokeShareTokenAction(vistoriaId, tokenId);
           toast.success("Link revogado");
         } catch (err) {
           if (isNextRedirectError(err)) {

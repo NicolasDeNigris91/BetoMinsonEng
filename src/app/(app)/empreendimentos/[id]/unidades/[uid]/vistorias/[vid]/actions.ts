@@ -62,6 +62,16 @@ export async function setAchadoStateInVistoriaAction(
   let fotosToCleanup: { arquivoPath: string; thumbPath: string }[] = [];
 
   await db.transaction(async (tx) => {
+    // Authz: garantir que o achado pertence a unidade da vistoria atual.
+    const [achadoCheck] = await tx
+      .select({ unidadeId: achados.unidadeId })
+      .from(achados)
+      .where(eq(achados.id, achadoId))
+      .limit(1);
+    if (!achadoCheck || achadoCheck.unidadeId !== ctx.unidadeId) {
+      throw new Error("Achado nao pertence a esta unidade.");
+    }
+
     const existing = await tx
       .select()
       .from(achadoEventos)
@@ -226,6 +236,18 @@ export async function updateAchadoAction(
       if (key && !fieldErrors[key]) fieldErrors[key] = issue.message;
     }
     return { fieldErrors };
+  }
+
+  // Authz: limita a edicao a achados da mesma unidade da vistoria do
+  // contexto. Sem isso, um id forjado de outra unidade/empreendimento
+  // passaria livre (single-user reduz mas nao zera o risco).
+  const [achado] = await db
+    .select({ unidadeId: achados.unidadeId })
+    .from(achados)
+    .where(eq(achados.id, achadoId))
+    .limit(1);
+  if (!achado || achado.unidadeId !== ctx.unidadeId) {
+    return { error: "Achado nao encontrado ou nao pertence a esta unidade." };
   }
 
   await db

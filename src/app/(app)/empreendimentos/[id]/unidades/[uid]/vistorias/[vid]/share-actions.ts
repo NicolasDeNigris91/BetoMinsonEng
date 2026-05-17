@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
 import { db } from "@/db";
 import { shareTokens } from "@/db/schema";
@@ -35,18 +35,21 @@ export async function createShareTokenAction(
 }
 
 export async function revokeShareTokenAction(
+  vistoriaId: string,
   tokenId: string,
 ): Promise<void> {
   await requireMutation();
+  const ctx = await vistoriaContext(vistoriaId);
 
-  const [row] = await db
-    .select({ vistoriaId: shareTokens.vistoriaId })
-    .from(shareTokens)
-    .where(eq(shareTokens.id, tokenId))
-    .limit(1);
+  // Restringir o delete ao par (id, vistoriaId) — evita revogar token
+  // de outra vistoria via id forjado.
+  const result = await db
+    .delete(shareTokens)
+    .where(
+      and(eq(shareTokens.id, tokenId), eq(shareTokens.vistoriaId, vistoriaId)),
+    )
+    .returning({ id: shareTokens.id });
 
-  if (!row) return;
-
-  await db.delete(shareTokens).where(eq(shareTokens.id, tokenId));
-  revalidatePath(vistoriaPath(await vistoriaContext(row.vistoriaId)));
+  if (result.length === 0) return;
+  revalidatePath(vistoriaPath(ctx));
 }
