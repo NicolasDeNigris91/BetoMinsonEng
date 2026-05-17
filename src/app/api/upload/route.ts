@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { db } from "@/db";
 import { achadoEventos, fotos, shareTokens, vistorias } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
+import { getClientIp } from "@/lib/client-ip";
 import { detectImageKind } from "@/lib/image-mime";
 import { processImage } from "@/lib/images";
 import { rateLimit } from "@/lib/rate-limit";
@@ -16,9 +17,7 @@ const UPLOAD_RATE_WINDOW_MS = 5 * 60 * 1000;
 
 function clientKey(req: Request, uploadToken: string | null): string {
   if (uploadToken) return `upload:t:${uploadToken}`;
-  const xff = req.headers.get("x-forwarded-for");
-  const ip = xff?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
-  return `upload:ip:${ip}`;
+  return `upload:ip:${getClientIp(req)}`;
 }
 
 const formSchema = z.object({
@@ -114,6 +113,19 @@ export async function POST(req: Request) {
   if (kind === "unknown") {
     return NextResponse.json(
       { error: "Arquivo nao e uma imagem valida (JPEG, PNG, WEBP ou HEIC)" },
+      { status: 415 },
+    );
+  }
+  // Sharp na imagem base do Railway nao tem libheif compilado — HEIC
+  // crasha com mensagem generica de processamento. Pra usuario de iPhone
+  // em obra, isso vira frustracao silenciosa. Bloqueia explicito com
+  // instrucao clara.
+  if (kind === "heic" || kind === "heif") {
+    return NextResponse.json(
+      {
+        error:
+          "Foto em formato HEIC nao e suportada. No iPhone: Ajustes > Camera > Formatos > Mais Compativel. Ou converta a foto antes de enviar.",
+      },
       { status: 415 },
     );
   }

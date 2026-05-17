@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import { db } from "@/db";
 import { achadoEventos, fotos, vistorias } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
+import { getClientIp } from "@/lib/client-ip";
 import { detectImageKind } from "@/lib/image-mime";
 import { processImage } from "@/lib/images";
 import { rateLimit } from "@/lib/rate-limit";
@@ -14,9 +15,7 @@ const RATE_LIMIT = 200;
 const RATE_WINDOW_MS = 5 * 60 * 1000;
 
 function clientKey(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for");
-  const ip = xff?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
-  return `photo-replace:ip:${ip}`;
+  return `photo-replace:ip:${getClientIp(req)}`;
 }
 
 /**
@@ -80,9 +79,19 @@ export async function POST(
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  if (detectImageKind(buffer) === "unknown") {
+  const kind = detectImageKind(buffer);
+  if (kind === "unknown") {
     return NextResponse.json(
       { error: "Arquivo nao e uma imagem valida (JPEG, PNG, WEBP ou HEIC)" },
+      { status: 415 },
+    );
+  }
+  if (kind === "heic" || kind === "heif") {
+    return NextResponse.json(
+      {
+        error:
+          "Foto em formato HEIC nao e suportada. No iPhone: Ajustes > Camera > Formatos > Mais Compativel. Ou converta a foto antes de enviar.",
+      },
       { status: 415 },
     );
   }
