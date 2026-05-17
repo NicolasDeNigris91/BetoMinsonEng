@@ -40,4 +40,42 @@ describe("storage.safeJoin (via APIs públicas)", () => {
     expect(fileExists("subdir/ok.txt")).toBe(true);
     await deleteFile("subdir/ok.txt");
   });
+
+  it("deleteFile remove o diretorio pai quando fica vazio", async () => {
+    const { saveFile, deleteFile } = await import("@/lib/storage");
+    const { existsSync } = await import("node:fs");
+    const path = await import("node:path");
+    const dir = "evento-cleanup-1";
+    await saveFile(`${dir}/foto.jpg`, Buffer.from("x"));
+    const root = path.resolve(process.env.UPLOADS_DIR!);
+    expect(existsSync(path.join(root, dir))).toBe(true);
+    await deleteFile(`${dir}/foto.jpg`);
+    expect(existsSync(path.join(root, dir))).toBe(false);
+  });
+
+  it("deleteFile mantem o diretorio pai quando ainda ha outros arquivos", async () => {
+    const { saveFile, deleteFile } = await import("@/lib/storage");
+    const { existsSync } = await import("node:fs");
+    const path = await import("node:path");
+    const dir = "evento-cleanup-2";
+    await saveFile(`${dir}/foto-a.jpg`, Buffer.from("a"));
+    await saveFile(`${dir}/foto-b.jpg`, Buffer.from("b"));
+    await deleteFile(`${dir}/foto-a.jpg`);
+    const root = path.resolve(process.env.UPLOADS_DIR!);
+    expect(existsSync(path.join(root, dir))).toBe(true);
+    expect(existsSync(path.join(root, dir, "foto-b.jpg"))).toBe(true);
+    await deleteFile(`${dir}/foto-b.jpg`);
+    expect(existsSync(path.join(root, dir))).toBe(false);
+  });
+
+  it("deleteFile nao tenta apagar a raiz de uploads", async () => {
+    const { saveFile, deleteFile } = await import("@/lib/storage");
+    const { existsSync } = await import("node:fs");
+    const path = await import("node:path");
+    await saveFile("solto-na-raiz.txt", Buffer.from("x"));
+    const root = path.resolve(process.env.UPLOADS_DIR!);
+    await deleteFile("solto-na-raiz.txt");
+    // raiz precisa continuar existindo
+    expect(existsSync(root)).toBe(true);
+  });
 });
