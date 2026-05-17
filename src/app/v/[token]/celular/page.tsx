@@ -109,18 +109,28 @@ export default async function MobileUploadPage({
   ]);
   const emp = empRow[0]?.empreendimentos;
 
-  const items = eventos
-    .filter((ev) => ev.achado != null)
-    .map((ev) => ({
-      eventoId: ev.id,
-      categoria: ev.achado!.categoria,
-      local: ev.achado!.local,
-      descricao: ev.achado!.descricao,
-      fotos: ev.fotos.map((f) => ({
-        id: f.id,
-        thumbPath: f.thumbPath,
-      })),
-    }));
+  // Achado resolvido nesta mesma vistoria nao deve aparecer pra upload —
+  // a UI mobile so faz sentido pra registrar foto de pendencia. Filtra
+  // pelo status atual do achado e dedup por achadoId (um achado pode ter
+  // mais de um evento na vistoria: ex. 'persiste' + 'nota').
+  const eventoPorAchado = new Map<string, (typeof eventos)[number]>();
+  for (const ev of eventos) {
+    if (!ev.achado || ev.achado.status !== "aberto") continue;
+    const existing = eventoPorAchado.get(ev.achadoId);
+    if (!existing || existing.createdAt < ev.createdAt) {
+      eventoPorAchado.set(ev.achadoId, ev);
+    }
+  }
+  const items = Array.from(eventoPorAchado.values()).map((ev) => ({
+    eventoId: ev.id,
+    categoria: ev.achado!.categoria,
+    local: ev.achado!.local,
+    descricao: ev.achado!.descricao,
+    fotos: ev.fotos.map((f) => ({
+      id: f.id,
+      thumbPath: f.thumbPath,
+    })),
+  }));
 
   return (
     <div className="min-h-screen bg-muted/30">
