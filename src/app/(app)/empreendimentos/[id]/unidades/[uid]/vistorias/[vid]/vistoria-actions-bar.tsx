@@ -37,6 +37,7 @@ export function VistoriaActionsBar({
   const [pending, start] = useTransition();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [finalizeOpen, setFinalizeOpen] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
   // Bloqueia Finalizar/Excluir enquanto há upload em voo — caso contrário,
   // a vistoria fecha (status=finalizada) e a foto que ainda está sendo
   // processada pelo Sharp acaba rejeitada com 409 ou salva órfã.
@@ -139,16 +140,25 @@ export function VistoriaActionsBar({
             }
           />
         ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={pending}
-            onClick={reopen}
-            className="border-amber-300 text-amber-900 hover:bg-amber-100 hover:text-amber-900 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900/30 dark:hover:text-amber-100"
-          >
-            <RotateCcw className="mr-1.5 size-4" />
-            Reabrir
-          </Button>
+          <ConfirmDialog
+            title="Reabrir vistoria?"
+            description="Ela volta para rascunho e pode ser editada novamente. Você pode finalizar de novo quando terminar."
+            confirmLabel="Reabrir"
+            onConfirm={reopen}
+            open={reopenOpen}
+            onOpenChange={setReopenOpen}
+            trigger={
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                className="border-amber-300 text-amber-900 hover:bg-amber-100 hover:text-amber-900 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900/30 dark:hover:text-amber-100"
+              >
+                <RotateCcw className="mr-1.5 size-4" />
+                Reabrir
+              </Button>
+            }
+          />
         )}
 
         <DropdownMenu>
