@@ -13,6 +13,7 @@ import {
   vistorias,
 } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
+import { isUuid } from "@/lib/route-params";
 import { readFileBuffer } from "@/lib/storage";
 import { formatDateBR, formatDateTimeBR, parseDateOnly } from "@/lib/format";
 import { renderHtmlToPdf } from "@/lib/pdf";
@@ -53,6 +54,9 @@ export async function GET(
   }
 
   const { empreendimentoId } = await params;
+  if (!isUuid(empreendimentoId)) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
   const url = new URL(req.url);
   const inicio = parseDateParam(url.searchParams.get("inicio"));
   const fim = parseDateParam(url.searchParams.get("fim"));

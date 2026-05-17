@@ -76,7 +76,18 @@ export async function POST(req: Request) {
     );
   }
 
-  const form = await req.formData();
+  // FormData crasha quando o body nao e multipart valido (header sem boundary,
+  // body vazio, content-type errado). Em vez de subir 500 generico, devolve
+  // 400 com mensagem util.
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return NextResponse.json(
+      { error: "Corpo da requisicao invalido (esperado multipart/form-data)" },
+      { status: 400 },
+    );
+  }
   const params = formSchema.safeParse({
     achadoEventoId: form.get("achadoEventoId"),
   });

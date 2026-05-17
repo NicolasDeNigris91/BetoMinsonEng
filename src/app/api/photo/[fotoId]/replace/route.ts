@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import { db } from "@/db";
 import { achadoEventos, fotos, vistorias } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
+import { isUuid } from "@/lib/route-params";
 import { getClientIp } from "@/lib/client-ip";
 import { detectImageKind } from "@/lib/image-mime";
 import { processImage } from "@/lib/images";
@@ -51,6 +52,9 @@ export async function POST(
   }
 
   const { fotoId } = await params;
+  if (!isUuid(fotoId)) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
 
   const contentLength = Number(req.headers.get("content-length") ?? 0);
   if (contentLength > MAX_BYTES) {
@@ -60,7 +64,17 @@ export async function POST(
     );
   }
 
-  const form = await req.formData();
+  // Vide /api/upload — formData() crasha em body nao-multipart e queremos
+  // devolver 400 limpo em vez de 500.
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return NextResponse.json(
+      { error: "Corpo da requisicao invalido (esperado multipart/form-data)" },
+      { status: 400 },
+    );
+  }
   const file = form.get("file");
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Arquivo ausente" }, { status: 400 });

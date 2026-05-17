@@ -8,6 +8,7 @@ import { db } from "@/db";
 import { achados, empreendimentos, unidades, vistorias } from "@/db/schema";
 import { formatDate } from "@/lib/format";
 import { getDateFormat } from "@/lib/date-format-server";
+import { parseUuidOrNotFound } from "@/lib/route-params";
 import {
   ACTIVITY_STRIPE,
   activityStatus,
@@ -24,7 +25,8 @@ export default async function EmpreendimentoDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const { id: rawId } = await params;
+  const id = parseUuidOrNotFound(rawId);
   const dateFmt = await getDateFormat();
 
   const [[emp], lista, vistoriasRows, abertosRows, ultimasRows] =

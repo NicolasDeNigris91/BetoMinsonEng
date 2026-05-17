@@ -17,6 +17,7 @@ import {
 import { env } from "@/lib/env";
 import { formatDate } from "@/lib/format";
 import { getDateFormat } from "@/lib/date-format-server";
+import { isUuid, parseUuidOrNotFound } from "@/lib/route-params";
 import { UploadInFlightProvider } from "@/lib/upload-in-flight";
 import { VISTORIA_STATUS_BADGE } from "@/lib/category-styles";
 import { AchadoChecklistRow } from "./achado-checklist-row";
@@ -36,6 +37,9 @@ export async function generateMetadata({
   params: Promise<{ uid: string; vid: string }>;
 }): Promise<Metadata> {
   const { uid, vid } = await params;
+  // Skip DB hit (e o cast UUID que estouraria) quando os params nao forem
+  // UUID — a page que vem depois chama notFound() na mesma situacao.
+  if (!isUuid(uid) || !isUuid(vid)) return { title: "Vistoria" };
   const [row] = await db
     .select({
       vistoriaData: vistorias.data,
@@ -57,7 +61,10 @@ export default async function VistoriaPage({
 }: {
   params: Promise<{ id: string; uid: string; vid: string }>;
 }) {
-  const { id, uid, vid } = await params;
+  const { id: rawId, uid: rawUid, vid: rawVid } = await params;
+  const id = parseUuidOrNotFound(rawId);
+  const uid = parseUuidOrNotFound(rawUid);
+  const vid = parseUuidOrNotFound(rawVid);
   const dateFmt = await getDateFormat();
 
   const [

@@ -12,6 +12,7 @@ import {
   vistorias,
 } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
+import { isUuid } from "@/lib/route-params";
 import { readFileBuffer } from "@/lib/storage";
 import { formatDateBR, formatDateTimeBR } from "@/lib/format";
 import { renderHtmlToPdf } from "@/lib/pdf";
@@ -66,6 +67,12 @@ export async function GET(
   { params }: { params: Promise<{ vistoriaId: string }> },
 ) {
   const { vistoriaId } = await params;
+  // Sem isUuid antes do isAuthorized, o cast UUID no SELECT subjacente
+  // estoura "invalid input syntax" e devolve 500 — para qualquer caller
+  // anonimo, isso vaza que a rota existe. 404 explicito e mais limpo.
+  if (!isUuid(vistoriaId)) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
 

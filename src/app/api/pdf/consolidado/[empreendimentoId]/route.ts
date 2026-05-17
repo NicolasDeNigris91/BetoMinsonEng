@@ -12,6 +12,7 @@ import {
   type Categoria,
 } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
+import { isUuid } from "@/lib/route-params";
 import { readFileBuffer } from "@/lib/storage";
 import { evaluatePrazo, formatDateBR, formatDateTimeBR } from "@/lib/format";
 import { renderHtmlToPdf } from "@/lib/pdf";
@@ -49,6 +50,9 @@ export async function GET(
   }
 
   const { empreendimentoId } = await params;
+  if (!isUuid(empreendimentoId)) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
 
   // Empreendimento + lista de unidades (com ordem). Em paralelo: totais e
   // mapas usados pra preencher cada unidade.

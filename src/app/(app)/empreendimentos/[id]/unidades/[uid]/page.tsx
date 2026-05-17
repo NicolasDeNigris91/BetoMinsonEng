@@ -35,6 +35,7 @@ import {
   type DateFormat,
 } from "@/lib/format";
 import { getDateFormat } from "@/lib/date-format-server";
+import { parseUuidOrNotFound } from "@/lib/route-params";
 import {
   CATEGORIA_DOT,
   VISTORIA_STATUS_BADGE,
@@ -193,7 +194,12 @@ export default async function UnidadeDetailPage({
   params: Promise<{ id: string; uid: string }>;
   searchParams: Promise<{ cat?: string; status?: string }>;
 }) {
-  const [{ id, uid }, sp] = await Promise.all([params, searchParams]);
+  const [{ id: rawId, uid: rawUid }, sp] = await Promise.all([
+    params,
+    searchParams,
+  ]);
+  const id = parseUuidOrNotFound(rawId);
+  const uid = parseUuidOrNotFound(rawUid);
   const { selectedCategorias, selectedStatus } = parseSearchParams(sp);
   const dateFmt = await getDateFormat();
 
