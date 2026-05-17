@@ -19,7 +19,11 @@ export type RateLimitResult = {
   retryAfterSec: number;
 };
 
-type BucketRow = { count: number; reset_at: Date };
+// reset_at chega como string do driver postgres-js via db.execute (timestamptz
+// nao e desserializado em Date automaticamente). Tipar como string evita o
+// .getTime() em string que silenciosamente caia no catch fail-open, anulando
+// todo o rate-limit.
+type BucketRow = { count: number; reset_at: string };
 
 export async function rateLimit({
   key,
@@ -56,7 +60,10 @@ export async function rateLimit({
     }
 
     if (row.count > limit) {
-      const retryAfterMs = row.reset_at.getTime() - Date.now();
+      const resetAtMs = Date.parse(row.reset_at);
+      const retryAfterMs = Number.isNaN(resetAtMs)
+        ? windowMs
+        : resetAtMs - Date.now();
       return {
         allowed: false,
         retryAfterSec: Math.max(1, Math.ceil(retryAfterMs / 1000)),
