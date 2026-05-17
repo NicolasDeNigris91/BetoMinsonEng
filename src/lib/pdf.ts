@@ -55,6 +55,25 @@ export async function renderHtmlToPdf(
   const browser = await getBrowser();
   const context = await browser.newContext({ viewport: { width: 794, height: 1123 } });
   const page = await context.newPage();
+  // Defense-in-depth contra SSRF: o template do PDF e renderizado pelo
+  // Chromium do servidor, que tem acesso a rede interna (metadata IMDS,
+  // services internos, etc). Hoje o conteudo e escapado e nao injeta
+  // requests externas — mas se algum dia um campo de texto deixar de
+  // escapar `<img src=...>`, o Chromium baixaria. Bloqueia tudo que nao
+  // for data:, about: ou Google Fonts (esse e o unico recurso externo
+  // intencional, importado pelo CSS dos templates).
+  await page.route("**/*", (route) => {
+    const url = route.request().url();
+    if (
+      url.startsWith("data:") ||
+      url.startsWith("about:") ||
+      url.startsWith("https://fonts.googleapis.com/") ||
+      url.startsWith("https://fonts.gstatic.com/")
+    ) {
+      return route.continue();
+    }
+    return route.abort();
+  });
   await page.setContent(html, { waitUntil: "load" });
   const pdf = await page.pdf({
     format: "A4",
