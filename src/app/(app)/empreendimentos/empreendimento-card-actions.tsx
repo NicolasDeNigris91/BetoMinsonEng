@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -93,22 +94,27 @@ export function EmpreendimentoCardActions({
             Vistoria
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Em qual unidade?</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {unidades.length === 0 ? (
-              <p className="px-2 py-3 text-xs text-muted-foreground">
-                Nenhuma unidade cadastrada ainda.
-              </p>
-            ) : (
-              unidades.map((u) => (
-                <DropdownMenuItem
-                  key={u.id}
-                  onClick={() => handleQuickCreate(u.id)}
-                >
-                  {u.nome}
-                </DropdownMenuItem>
-              ))
-            )}
+            {/* Label + items DENTRO de Group: Base UI Menu exige que
+                GroupLabel viva sob Group; sem isso crasha em prod com
+                Base UI error #31 (em dev so emite warning). */}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Em qual unidade?</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {unidades.length === 0 ? (
+                <p className="px-2 py-3 text-xs text-muted-foreground">
+                  Nenhuma unidade cadastrada ainda.
+                </p>
+              ) : (
+                unidades.map((u) => (
+                  <DropdownMenuItem
+                    key={u.id}
+                    onClick={() => handleQuickCreate(u.id)}
+                  >
+                    {u.nome}
+                  </DropdownMenuItem>
+                ))
+              )}
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       )}
