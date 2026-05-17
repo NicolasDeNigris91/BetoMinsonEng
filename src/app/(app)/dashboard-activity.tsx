@@ -25,7 +25,7 @@ const CAT_TAG: Record<Categoria, string> = {
   HID: "bg-blue-100 text-blue-900 dark:bg-blue-900/30 dark:text-blue-200",
   HVAC: "bg-sky-100 text-sky-900 dark:bg-sky-900/30 dark:text-sky-200",
   PISCINA:
-    "bg-teal-100 teal-900 dark:bg-teal-900/30 dark:text-teal-200",
+    "bg-teal-100 text-teal-900 dark:bg-teal-900/30 dark:text-teal-200",
   ASP: "bg-violet-100 text-violet-900 dark:bg-violet-900/30 dark:text-violet-200",
   SIS: "bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-200",
 };

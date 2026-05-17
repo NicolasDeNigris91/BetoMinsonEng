@@ -105,7 +105,7 @@ export default async function EmpreendimentoDetailPage({
         ]}
       />
 
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
             {emp.nome}
@@ -142,7 +142,7 @@ export default async function EmpreendimentoDetailPage({
             ) : null}
           </dl>
         </div>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <Button
             variant="outline"
             size="sm"
