@@ -33,14 +33,21 @@ export async function deleteFotoAction(
       arquivoPath: fotos.arquivoPath,
       thumbPath: fotos.thumbPath,
       eventoId: fotos.achadoEventoId,
+      eventoTipo: achadoEventos.tipo,
     })
     .from(fotos)
+    .innerJoin(achadoEventos, eq(achadoEventos.id, fotos.achadoEventoId))
     .where(eq(fotos.id, fotoId))
     .limit(1);
   if (!foto) return;
 
   const ctx = await vistoriaContextFromEvento(foto.eventoId);
-  if (ctx.vistoriaStatus === "finalizada") {
+  // Mesma regra do /api/upload e /api/photo/[id]/replace: vistoria
+  // finalizada so trava o evento 'criado' (registro original). Fotos
+  // de comprovacao em eventos retroativos (resolvido/persiste/nota)
+  // podem ser corrigidas — caso contrario o engenheiro fica preso
+  // com uma foto errada sem poder apagar.
+  if (ctx.vistoriaStatus === "finalizada" && foto.eventoTipo === "criado") {
     return actionError(FINALIZADA_DELETE_MSG);
   }
 

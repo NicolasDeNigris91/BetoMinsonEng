@@ -43,6 +43,13 @@
       "when": 1778872082056,
       "tag": "0005_cynical_infant_terrible",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779038337007,
+      "tag": "0006_wise_imperial_guard",
+      "breakpoints": true
     }
   ]
 }

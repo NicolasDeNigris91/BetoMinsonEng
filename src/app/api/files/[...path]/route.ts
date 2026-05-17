@@ -63,11 +63,24 @@ export async function GET(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  if (!fileExists(relativePath)) {
+  // safeJoin lanca em path traversal — captura aqui pra devolver 400
+  // limpo em vez de 500 com stack.
+  let exists = false;
+  try {
+    exists = fileExists(relativePath);
+  } catch {
+    return NextResponse.json({ error: "invalid path" }, { status: 400 });
+  }
+  if (!exists) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  const buffer = await readFileBuffer(relativePath);
+  let buffer: Buffer;
+  try {
+    buffer = await readFileBuffer(relativePath);
+  } catch {
+    return NextResponse.json({ error: "invalid path" }, { status: 400 });
+  }
   const ext = relativePath.split(".").pop() ?? "";
 
   return new NextResponse(new Uint8Array(buffer), {

@@ -488,8 +488,12 @@ export const getDashboardData = unstable_cache(
       CACHE_TAGS.empreendimentos,
       CACHE_TAGS.unidades,
     ],
-    // revalidate=false significa que so invalidamos via revalidateTag.
-    // Sem isso, Next aplicaria um TTL implicito.
-    revalidate: false,
+    // TTL de 5min: a chave do cache inclui `seteDiasAtrasISO` (vide
+    // page.tsx); cada virada de dia gera uma nova chave que ficaria
+    // viva pra sempre com revalidate:false, inflando o cache backing
+    // ao longo de semanas. 5min permite garbage collect natural e
+    // ainda preserva o hit rate dentro do mesmo dia. A invalidacao
+    // por mutate (revalidateTag) continua imediata.
+    revalidate: 300,
   },
 );

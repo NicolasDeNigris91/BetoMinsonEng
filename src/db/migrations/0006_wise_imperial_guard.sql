@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "achado_eventos_achado_vistoria_unique" ON "achado_eventos" USING btree ("achado_id","vistoria_id");

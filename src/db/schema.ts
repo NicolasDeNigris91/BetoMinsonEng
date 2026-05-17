@@ -10,6 +10,7 @@ import {
   integer,
   boolean,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const categoriaEnum = pgEnum("categoria", [
@@ -140,6 +141,13 @@ export const achadoEventos = pgTable(
   (t) => [
     index("achado_eventos_achado_idx").on(t.achadoId),
     index("achado_eventos_vistoria_idx").on(t.vistoriaId),
+    // Cada achado tem no maximo um evento por vistoria. Antes desta
+    // constraint, duplo-clique em "Persiste"/"Resolvido" criava dois
+    // eventos do mesmo tipo na mesma vistoria, sujando historico/PDF.
+    uniqueIndex("achado_eventos_achado_vistoria_unique").on(
+      t.achadoId,
+      t.vistoriaId,
+    ),
   ],
 );
 
