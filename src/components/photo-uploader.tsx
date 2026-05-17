@@ -273,7 +273,9 @@ export function PhotoUploader({
   const handleReplaceConfirm = async (edited: File) => {
     if (!editingFoto) return;
     const fotoId = editingFoto.fotoId;
-    setEditingFoto(null);
+    // Nao fecha o editor ate o replace retornar OK — se a rede falhar
+    // (3G de obra), o usuario tem chance de tentar de novo sem perder
+    // a marcacao que acabou de fazer no canvas.
     start(async () => {
       try {
         const fd = new FormData();
@@ -281,6 +283,7 @@ export function PhotoUploader({
         const res = await fetch(`/api/photo/${fotoId}/replace`, {
           method: "POST",
           body: fd,
+          signal: AbortSignal.timeout(60_000),
         });
         if (!res.ok) {
           const data = (await res.json().catch(() => ({}))) as {
@@ -288,6 +291,7 @@ export function PhotoUploader({
           };
           throw new Error(data.error ?? "Falha ao salvar marcacao");
         }
+        setEditingFoto(null);
         router.refresh();
       } catch (err) {
         if (isNextRedirectError(err)) throw err;

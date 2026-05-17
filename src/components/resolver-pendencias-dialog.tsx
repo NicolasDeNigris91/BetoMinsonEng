@@ -40,6 +40,50 @@ function toDatetimeLocal(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+const UPLOAD_TIMEOUT_MS = 60_000;
+const UPLOAD_MAX_ATTEMPTS = 3;
+const UPLOAD_BACKOFF_MS = [800, 2400];
+
+/**
+ * Upload de comprovacao com timeout + retry exponencial. Pequena duplicacao
+ * vs use-photo-upload (esse hook recebe eventoId no construtor; aqui o
+ * eventoId so existe DEPOIS do resolveAction). Mantem mesma robustez de
+ * rede pra evitar perda silenciosa de foto durante vistoria.
+ */
+async function uploadWithRetry(eventoId: string, file: File): Promise<boolean> {
+  for (let attempt = 0; attempt < UPLOAD_MAX_ATTEMPTS; attempt++) {
+    const fd = new FormData();
+    fd.set("achadoEventoId", eventoId);
+    fd.set("file", file);
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: fd,
+        signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+      });
+      if (res.ok) return true;
+      const transient =
+        res.status >= 500 || res.status === 408 || res.status === 429;
+      if (!transient || attempt === UPLOAD_MAX_ATTEMPTS - 1) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(
+          data.error ?? "Nao foi possivel anexar a foto. Tente de novo.",
+        );
+        return false;
+      }
+    } catch {
+      if (attempt === UPLOAD_MAX_ATTEMPTS - 1) {
+        toast.error("Falha de rede ao enviar a foto. Tente de novo.");
+        return false;
+      }
+    }
+    await new Promise((r) =>
+      setTimeout(r, UPLOAD_BACKOFF_MS[attempt] ?? UPLOAD_BACKOFF_MS.at(-1)!),
+    );
+  }
+  return false;
+}
+
 /** Formata Date pra exibicao "DD/MM/YYYY HH:MM". */
 function formatBR(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -125,27 +169,15 @@ function PendenciaRow({
           parsed.toISOString(),
         );
 
-        // Upload da foto (se houver) — POST direto pro endpoint existente.
+        // Upload da foto (se houver). Resolver pendencia geralmente
+        // acontece no escritorio (rede boa) mas pode rodar mobile durante
+        // a vistoria de volta — timeout + 2 retries pra absorver glitch
+        // de rede sem perder a comprovacao.
         if (file && eventoId) {
-          const fd = new FormData();
-          fd.set("achadoEventoId", eventoId);
-          fd.set("file", file);
-          const res = await fetch("/api/upload", {
-            method: "POST",
-            body: fd,
-          });
-          if (!res.ok) {
-            const data = (await res.json().catch(() => ({}))) as {
-              error?: string;
-            };
-            toast.error(
-              data.error ?? "Não foi possível anexar a foto. Tente de novo.",
-            );
-            // Mesmo com falha no upload, o evento ja foi criado — segue
-            // adiante marcando como resolvido sem foto.
-          } else {
-            setHasFoto(true);
-          }
+          const ok = await uploadWithRetry(eventoId, file);
+          if (ok) setHasFoto(true);
+          // Se falhou, o evento ja foi criado: continua marcando como
+          // resolvido. O toast de erro ja foi emitido por uploadWithRetry.
         }
 
         setResolved(true);

@@ -25,6 +25,17 @@ export function LoginForm({ from }: { from: string }) {
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="from" value={from} />
+      {/* Username escondido (mas presente no DOM) pra que gerenciadores de
+          senha do navegador — 1Password, Bitwarden, Chrome — consigam
+          salvar e auto-preencher o login. */}
+      <input
+        type="text"
+        name="username"
+        autoComplete="username"
+        value="diminson"
+        readOnly
+        hidden
+      />
       <div className="space-y-2">
         <Label htmlFor="password">Senha</Label>
         <div className="relative">
