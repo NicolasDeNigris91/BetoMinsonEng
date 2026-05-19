@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -86,6 +86,7 @@ export function PhotoUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
+  const rootRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const [pending, start] = useTransition();
   const [dragOver, setDragOver] = useState(false);
@@ -241,6 +242,34 @@ export function PhotoUploader({
     void handleUpload(imageFiles);
   };
 
+  // Ctrl+V cola imagem do clipboard direto no achado. Escopo = elemento pai
+  // (EventoEditor), que envolve o textarea de notas + este uploader: assim
+  // o paste so dispara quando o foco esta dentro deste achado, evitando
+  // ambiguidade entre multiplos achados em modo de edicao na mesma pagina.
+  useEffect(() => {
+    if (!editable) return;
+    const root = rootRef.current;
+    if (!root) return;
+    const scope = root.parentElement;
+    if (!scope) return;
+
+    const handler = (e: ClipboardEvent) => {
+      const active = document.activeElement;
+      if (!active || active === document.body || !scope.contains(active)) {
+        return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const imageFiles = pickImageFiles(items);
+      if (imageFiles.length === 0) return;
+      e.preventDefault();
+      void upload(imageFiles);
+    };
+
+    document.addEventListener("paste", handler);
+    return () => document.removeEventListener("paste", handler);
+  }, [editable, upload]);
+
   const handleDelete = (id: string) => {
     start(async () => {
       try {
@@ -317,6 +346,7 @@ export function PhotoUploader({
 
   return (
     <div
+      ref={rootRef}
       className={
         editable
           ? `relative space-y-3 transition-colors ${
