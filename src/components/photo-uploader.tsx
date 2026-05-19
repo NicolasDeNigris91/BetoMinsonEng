@@ -549,7 +549,7 @@ function FotoCard({
             alt={foto.legenda ?? "Foto anexada ao achado"}
             loading="lazy"
             decoding="async"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
           />
         </a>
         {editable ? (
