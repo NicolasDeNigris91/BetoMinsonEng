@@ -23,6 +23,7 @@ import { VISTORIA_STATUS_BADGE } from "@/lib/category-styles";
 import { AchadoChecklistRow } from "./achado-checklist-row";
 import { AchadosSortableList } from "./achados-sortable-list";
 import { AchadoFormDialog } from "./novo-achado-dialog";
+import { NovoAchadoInline } from "./novo-achado-inline";
 import { MobileUploadButton } from "./mobile-upload-button";
 import { NovoAchadoCard } from "./novo-achado-card";
 import { ObservacoesField } from "./observacoes-field";
@@ -364,7 +365,7 @@ export default async function VistoriaPage({
           ) : null}
         </div>
 
-        {novosAchados.length === 0 ? (
+        {novosAchados.length === 0 && !isDraft ? (
           <div className="bp-grid-strong relative overflow-hidden rounded-lg border bg-card">
             <div className="mx-auto flex max-w-md flex-col items-center justify-center px-6 py-8 text-center">
               <div className="rounded-lg border border-dashed border-muted-foreground/30 p-3">
@@ -377,13 +378,13 @@ export default async function VistoriaPage({
                 Sem achados
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {isDraft
-                  ? "Clique em \"Novo achado\" pra registrar a primeira ocorrência desta vistoria."
-                  : "Nenhum achado foi registrado nesta vistoria."}
+                Nenhum achado foi registrado nesta vistoria.
               </p>
             </div>
           </div>
-        ) : (
+        ) : null}
+
+        {novosAchados.length > 0 ? (
           <AchadosSortableList
             vistoriaId={vistoria.id}
             achadoIds={eventosPorAchado.map((g) => g.achado.id)}
@@ -418,7 +419,9 @@ export default async function VistoriaPage({
               </div>
             ))}
           </AchadosSortableList>
-        )}
+        ) : null}
+
+        {isDraft ? <NovoAchadoInline vistoriaId={vistoria.id} /> : null}
       </section>
 
       <Separator />
