@@ -11,6 +11,7 @@ import {
   boolean,
   index,
   uniqueIndex,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
 export const categoriaEnum = pgEnum("categoria", [
@@ -199,6 +200,52 @@ export const rateLimitBuckets = pgTable(
   (t) => [index("rate_limit_buckets_reset_idx").on(t.resetAt)],
 );
 
+// Escopos = ordens de servico. Agrupam achados de varias unidades do mesmo
+// empreendimento pra gerar um PDF que vai pro profissional que vai resolver
+// (ex: "Joao - Eletrica" pega 12 achados de eletrica espalhados por 3 aptos).
+// Achados nao sao "movidos" — sao referenciados via tabela de juncao.
+export const escopos = pgTable(
+  "escopos",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    empreendimentoId: uuid("empreendimento_id")
+      .notNull()
+      .references(() => empreendimentos.id, { onDelete: "cascade" }),
+    nome: varchar("nome", { length: 200 }).notNull(),
+    descricao: text("descricao"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("escopos_empreendimento_idx").on(t.empreendimentoId)],
+);
+
+// Juncao many-to-many. Um achado pode estar em N escopos (ex: serviço misto
+// que envolve eletrica e hidraulica entra nos escopos do Joao E do Pedro).
+// PK composta = nao tem duplicata do mesmo achado no mesmo escopo.
+export const escopoAchados = pgTable(
+  "escopo_achados",
+  {
+    escopoId: uuid("escopo_id")
+      .notNull()
+      .references(() => escopos.id, { onDelete: "cascade" }),
+    achadoId: uuid("achado_id")
+      .notNull()
+      .references(() => achados.id, { onDelete: "cascade" }),
+    ordem: integer("ordem").notNull(),
+    adicionadoEm: timestamp("adicionado_em", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.escopoId, t.achadoId] }),
+    index("escopo_achados_achado_idx").on(t.achadoId),
+  ],
+);
+
 // Preparacao para migrar do APP_PASSWORD compartilhado pra usuarios
 // por pessoa. Tabela existe; auth ainda nao foi cabeada nela.
 //
@@ -296,6 +343,25 @@ export const shareTokensRelations = relations(shareTokens, ({ one }) => ({
   }),
 }));
 
+export const escoposRelations = relations(escopos, ({ one, many }) => ({
+  empreendimento: one(empreendimentos, {
+    fields: [escopos.empreendimentoId],
+    references: [empreendimentos.id],
+  }),
+  itens: many(escopoAchados),
+}));
+
+export const escopoAchadosRelations = relations(escopoAchados, ({ one }) => ({
+  escopo: one(escopos, {
+    fields: [escopoAchados.escopoId],
+    references: [escopos.id],
+  }),
+  achado: one(achados, {
+    fields: [escopoAchados.achadoId],
+    references: [achados.id],
+  }),
+}));
+
 export type Empreendimento = typeof empreendimentos.$inferSelect;
 export type NovoEmpreendimento = typeof empreendimentos.$inferInsert;
 export type Unidade = typeof unidades.$inferSelect;
@@ -309,6 +375,9 @@ export type NovoAchadoEvento = typeof achadoEventos.$inferInsert;
 export type Foto = typeof fotos.$inferSelect;
 export type NovaFoto = typeof fotos.$inferInsert;
 export type ShareToken = typeof shareTokens.$inferSelect;
+export type Escopo = typeof escopos.$inferSelect;
+export type NovoEscopo = typeof escopos.$inferInsert;
+export type EscopoAchado = typeof escopoAchados.$inferSelect;
 
 export type Categoria = (typeof categoriaEnum.enumValues)[number];
 export type VistoriaStatus = (typeof vistoriaStatusEnum.enumValues)[number];
