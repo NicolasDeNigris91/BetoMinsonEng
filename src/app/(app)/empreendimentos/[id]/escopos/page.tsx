@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq, desc, count, countDistinct, sql } from "drizzle-orm";
+import { eq, desc, count, countDistinct } from "drizzle-orm";
 import { ClipboardList } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { db } from "@/db";

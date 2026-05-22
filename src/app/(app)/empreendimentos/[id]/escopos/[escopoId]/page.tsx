@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { eq, and, asc } from "drizzle-orm";
-import { Plus, ClipboardList } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/db";

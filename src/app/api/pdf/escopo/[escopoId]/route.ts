@@ -99,7 +99,7 @@ export async function GET(
   // evento que mostrava o problema ja foi substituido. Em ultimo caso, pega
   // qualquer evento que tenha fotos.
   const achadoIds = itens.map((it) => it.achadoId);
-  let fotosPorAchado = new Map<string, PdfEscopoFoto[]>();
+  const fotosPorAchado = new Map<string, PdfEscopoFoto[]>();
   if (achadoIds.length > 0) {
     // Buscar todos os eventos dos achados, com fotos.
     const eventos = await db
