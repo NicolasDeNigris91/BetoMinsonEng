@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq, desc, and, count, asc, sql } from "drizzle-orm";
+import { eq, desc, and, count, asc, sql, inArray } from "drizzle-orm";
 import {
   CheckCircle2,
   ClipboardList,
   FileText,
+  HardHat,
   History,
   Plus,
   StickyNote,
@@ -22,6 +23,7 @@ import {
   vistorias,
   achados,
   achadoEventos,
+  escopos,
   categoriaEnum,
   CATEGORIA_LABELS,
   type AchadoStatus,
@@ -58,6 +60,7 @@ type EventoView = {
   tipo: EventoTipo;
   createdAt: Date;
   categoria: Categoria;
+  escopoOrigemId: string | null;
 };
 
 const VALID_STATUS: StatusFilter[] = ["todos", "aberto", "atrasado", "resolvido"];
@@ -143,12 +146,14 @@ function pairEventosPorAchado(eventos: EventoView[]): LinhaAudit[] {
 function EventoLine({
   ev,
   categoria,
-  autor,
+  autorVistoria,
+  nomeEscopoPorId,
   dateFmt,
 }: {
   ev: EventoView | null;
   categoria: Categoria;
-  autor: string | null;
+  autorVistoria: string | null;
+  nomeEscopoPorId: Map<string, string>;
   dateFmt: DateFormat;
 }) {
   if (!ev) {
@@ -158,6 +163,9 @@ function EventoLine({
       </span>
     );
   }
+  const nomeEscopo = ev.escopoOrigemId
+    ? nomeEscopoPorId.get(ev.escopoOrigemId)
+    : null;
   return (
     <span className="flex flex-wrap items-center gap-x-2 font-mono text-[11px]">
       <span
@@ -177,10 +185,18 @@ function EventoLine({
       <span className="tabular-nums text-muted-foreground">
         {formatDateTime(ev.createdAt, dateFmt)}
       </span>
-      {autor ? (
+      {nomeEscopo ? (
         <>
           <span className="text-muted-foreground/60">·</span>
-          <span className="text-muted-foreground">{autor}</span>
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            <HardHat className="size-3" aria-hidden />
+            via escopo: {nomeEscopo}
+          </span>
+        </>
+      ) : autorVistoria ? (
+        <>
+          <span className="text-muted-foreground/60">·</span>
+          <span className="text-muted-foreground">{autorVistoria}</span>
         </>
       ) : null}
     </span>
@@ -275,6 +291,7 @@ export default async function UnidadeDetailPage({
         tipo: achadoEventos.tipo,
         createdAt: achadoEventos.createdAt,
         categoria: achados.categoria,
+        escopoOrigemId: achadoEventos.escopoOrigemId,
       })
       .from(achadoEventos)
       .innerJoin(achados, eq(achados.id, achadoEventos.achadoId))
@@ -296,6 +313,25 @@ export default async function UnidadeDetailPage({
   ]);
 
   if (!unidade || !emp) notFound();
+
+  // Nomes dos escopos que registraram eventos nesta unidade — usados
+  // como autor da linha do evento ("via escopo: X") em vez do
+  // vistoriadorNome da vistoria, sempre que escopoOrigemId estiver setado.
+  const escopoIdsParaCarregar = Array.from(
+    new Set(
+      eventosRows
+        .map((e) => e.escopoOrigemId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const escoposRows =
+    escopoIdsParaCarregar.length > 0
+      ? await db
+          .select({ id: escopos.id, nome: escopos.nome })
+          .from(escopos)
+          .where(inArray(escopos.id, escopoIdsParaCarregar))
+      : [];
+  const nomeEscopoPorId = new Map(escoposRows.map((e) => [e.id, e.nome]));
 
   // Mapa achadoId -> dados — base do filtro aplicado em event rows.
   const achadoById = new Map(achadosDaUnidade.map((a) => [a.id, a]));
@@ -604,13 +640,15 @@ export default async function UnidadeDetailPage({
                             <EventoLine
                               ev={row.left}
                               categoria={row.categoria}
-                              autor={v.vistoriadorNome}
+                              autorVistoria={v.vistoriadorNome}
+                              nomeEscopoPorId={nomeEscopoPorId}
                               dateFmt={dateFmt}
                             />
                             <EventoLine
                               ev={row.right}
                               categoria={row.categoria}
-                              autor={v.vistoriadorNome}
+                              autorVistoria={v.vistoriadorNome}
+                              nomeEscopoPorId={nomeEscopoPorId}
                               dateFmt={dateFmt}
                             />
                           </li>
@@ -619,7 +657,6 @@ export default async function UnidadeDetailPage({
                     ) : null}
                   </div>
 
-                  {/* Acoes do canto superior direito — sibling do Link, z-10 */}
                   <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
                     <Link
                       href={`/api/pdf/${v.id}`}

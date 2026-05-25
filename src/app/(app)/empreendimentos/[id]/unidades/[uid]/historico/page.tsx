@@ -8,6 +8,7 @@ import {
   achadoEventos,
   achados,
   empreendimentos,
+  escopos,
   unidades,
   vistorias,
 } from "@/db/schema";
@@ -88,10 +89,16 @@ export default async function HistoricoUnidadePage({
         categoria: achados.categoria,
         local: achados.local,
         descricao: achados.descricao,
+        escopoOrigemId: achadoEventos.escopoOrigemId,
+        escopoOrigemNome: escopos.nome,
       })
       .from(achadoEventos)
       .innerJoin(achados, eq(achados.id, achadoEventos.achadoId))
       .innerJoin(vistorias, eq(vistorias.id, achadoEventos.vistoriaId))
+      // LEFT JOIN: maioria dos eventos nao tem escopoOrigemId — sao
+      // registros da engenharia direto na vistoria. So eventos vindos do
+      // link do profissional preenchem essa coluna.
+      .leftJoin(escopos, eq(escopos.id, achadoEventos.escopoOrigemId))
       .where(eq(vistorias.unidadeId, uid))
       .orderBy(desc(achadoEventos.createdAt)),
   ]);
@@ -128,6 +135,8 @@ export default async function HistoricoUnidadePage({
       descricao: ev.descricao,
       notaExtra: ev.notaExtra,
       vistoriador: ev.vistoriador,
+      escopoOrigemId: ev.escopoOrigemId,
+      escopoOrigemNome: ev.escopoOrigemNome,
     });
   }
 

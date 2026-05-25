@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
+  HardHat,
   MessageSquare,
   PlusCircle,
 } from "lucide-react";
@@ -43,6 +44,9 @@ export type HistoricoItem =
       descricao: string;
       notaExtra: string | null;
       vistoriador: string | null;
+      /** Quando setado, evento foi registrado via link publico de um escopo. */
+      escopoOrigemId: string | null;
+      escopoOrigemNome: string | null;
     };
 
 export type DayGroup = {
@@ -241,7 +245,13 @@ const TIPO_COLOR: Record<EventoTipo, string> = {
   nota: "text-blue-700 dark:text-blue-300",
 };
 
-function TimelineRow({ item, href }: { item: HistoricoItem; href: string }) {
+function TimelineRow({
+  item,
+  href,
+}: {
+  item: HistoricoItem;
+  href: string;
+}) {
   if (item.kind === "vistoria-criada") {
     return (
       <li>
@@ -279,11 +289,15 @@ function TimelineRow({ item, href }: { item: HistoricoItem; href: string }) {
     );
   }
 
+  const viaEscopo = Boolean(item.escopoOrigemId && item.escopoOrigemNome);
   return (
     <li>
       <Link
         href={href}
-        className="flex flex-wrap items-baseline gap-x-2 rounded px-1 py-0.5 text-sm transition-colors hover:bg-accent/40"
+        className={cn(
+          "flex flex-wrap items-baseline gap-x-2 rounded px-1 py-0.5 text-sm transition-colors hover:bg-accent/40",
+          viaEscopo && "border-l-2 border-brand bg-brand/[0.03] pl-2",
+        )}
       >
         <span className="w-12 font-mono text-[10px] tabular-nums text-muted-foreground">
           {formatTimeBR(item.at)}
@@ -303,6 +317,15 @@ function TimelineRow({ item, href }: { item: HistoricoItem; href: string }) {
           {item.local ? ` · ${item.local}` : ""} —{" "}
           <span className="text-foreground/80">{item.descricao}</span>
         </span>
+        {viaEscopo && item.escopoOrigemNome ? (
+          <span className="ml-1 inline-flex items-center gap-1 text-brand">
+            <HardHat className="size-3" aria-hidden />
+            via escopo:{" "}
+            <span className="font-semibold">{item.escopoOrigemNome}</span>
+          </span>
+        ) : item.vistoriador ? (
+          <span className="text-muted-foreground">· {item.vistoriador}</span>
+        ) : null}
       </Link>
     </li>
   );
