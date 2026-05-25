@@ -3,7 +3,9 @@ import {
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
+  HardHat,
   ImageIcon,
+  PartyPopper,
   PlusCircle,
   type LucideIcon,
 } from "lucide-react";
@@ -61,14 +63,23 @@ export function DashboardAtividade({ items }: Props) {
     );
   }
 
+  // Altura fixa com scroll interno: preserva o panorama (banners, agenda,
+  // ordens) na primeira dobra. Mascara de fade no rodape sinaliza que ha
+  // mais conteudo abaixo. ~6 itens visiveis em 380px.
   return (
-    <ul className="divide-y divide-dashed divide-border/70 rounded-lg border bg-card">
-      {items.map((item, i) => (
-        <li key={i}>
-          <ActivityRow item={item} />
-        </li>
-      ))}
-    </ul>
+    <div className="relative overflow-hidden rounded-lg border bg-card">
+      <ul className="dashboard-scroll divide-y divide-dashed divide-border/70 max-h-[380px] overflow-y-auto">
+        {items.map((item, i) => (
+          <li key={i}>
+            <ActivityRow item={item} />
+          </li>
+        ))}
+      </ul>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-0 left-0 right-0 h-7 bg-gradient-to-b from-card/0 to-card"
+      />
+    </div>
   );
 }
 
@@ -93,6 +104,40 @@ function ActivityRow({ item }: { item: DashboardActivity }) {
           <p className="font-mono text-[10px] tracking-[0.04em] text-muted-foreground/70">
             {item.empreendimentoNome} · {relativeTime(item.at)}
             {item.vistoriadorNome ? ` · ${item.vistoriadorNome}` : ""}
+          </p>
+        </div>
+      </Link>
+    );
+  }
+
+  if (item.kind === "ordem-concluida") {
+    return (
+      <Link
+        href={`/empreendimentos/${item.empreendimentoId}/escopos/${item.escopoId}`}
+        className="flex items-start gap-3 px-3 py-2.5 transition-colors hover:bg-accent/40 border-l-2 border-l-brand bg-brand/[0.04]"
+      >
+        <IconBubble
+          icon={PartyPopper}
+          className="bg-brand/15 text-brand"
+        />
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p className="text-sm leading-tight">
+            <span className="text-foreground/85">Ordem concluida</span> ·{" "}
+            <strong className="font-semibold text-foreground">
+              {item.escopoNome}
+            </strong>
+          </p>
+          <p className="flex flex-wrap items-center gap-x-2 font-mono text-[10px] tracking-[0.04em] text-muted-foreground/70">
+            <span>{item.empreendimentoNome}</span>
+            <span>·</span>
+            <span>
+              {item.totalAchados}{" "}
+              {item.totalAchados === 1 ? "achado" : "achados"} ·{" "}
+              {item.nUnidades}{" "}
+              {item.nUnidades === 1 ? "unidade" : "unidades"}
+            </span>
+            <span>·</span>
+            <span>{relativeTime(item.at)}</span>
           </p>
         </div>
       </Link>
@@ -128,11 +173,19 @@ function ActivityRow({ item }: { item: DashboardActivity }) {
   const Icon = item.tipo === "resolvido" ? CheckCircle2 : EVENTO_ICON[item.tipo];
   const iconCls = EVENTO_ICON_BG[item.tipo];
   const verbo = EVENTO_VERBO[item.tipo];
+  const viaEscopo = Boolean(item.escopoOrigemId);
 
   return (
     <Link
-      href={`/empreendimentos/${item.empreendimentoId}/unidades/${item.unidadeId}`}
-      className="flex items-start gap-3 px-3 py-2.5 transition-colors hover:bg-accent/40"
+      href={
+        viaEscopo
+          ? `/empreendimentos/${item.empreendimentoId}/escopos/${item.escopoOrigemId}`
+          : `/empreendimentos/${item.empreendimentoId}/unidades/${item.unidadeId}`
+      }
+      className={cn(
+        "flex items-start gap-3 px-3 py-2.5 transition-colors hover:bg-accent/40",
+        viaEscopo && "border-l-2 border-l-brand bg-brand/[0.04]",
+      )}
     >
       <IconBubble icon={Icon} className={iconCls} />
       <div className="min-w-0 flex-1 space-y-0.5">
@@ -185,6 +238,15 @@ function ActivityRow({ item }: { item: DashboardActivity }) {
               <span className="inline-flex items-center gap-1">
                 <ImageIcon className="size-3" aria-hidden />
                 {item.fotosCount} {item.fotosCount === 1 ? "foto" : "fotos"}
+              </span>
+            </>
+          ) : null}
+          {viaEscopo && item.escopoOrigemNome ? (
+            <>
+              <span>·</span>
+              <span className="inline-flex items-center gap-1 text-brand">
+                <HardHat className="size-3" aria-hidden />
+                via escopo: {item.escopoOrigemNome}
               </span>
             </>
           ) : null}

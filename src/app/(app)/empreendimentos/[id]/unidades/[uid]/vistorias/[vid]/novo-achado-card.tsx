@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { HardHat, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -51,6 +51,12 @@ type Props = {
   editable: boolean;
   /** Vistoriador da vistoria — exibido como autor na linha de audit. */
   autor: string | null;
+  /**
+   * Quando setado, o evento foi registrado por um profissional via link
+   * publico de um escopo. Substitui o nome do vistoriador na linha de
+   * audit por "via escopo: X" pra ficar claro que nao foi a engenharia.
+   */
+  escopoOrigemNome?: string | null;
   evento: {
     id: string;
     tipo: EventoTipo;
@@ -67,6 +73,7 @@ export function NovoAchadoCard({
   achado,
   editable,
   autor,
+  escopoOrigemNome,
   evento,
   shareToken,
   dateFmt,
@@ -138,7 +145,15 @@ export function NovoAchadoCard({
       <span className="tabular-nums text-muted-foreground">
         {formatDateTime(evento.createdAt, dateFmt)}
       </span>
-      {autor ? (
+      {escopoOrigemNome ? (
+        <>
+          <span className="text-muted-foreground/60">·</span>
+          <span className="inline-flex items-center gap-1 text-brand">
+            <HardHat className="size-3" aria-hidden />
+            via escopo: {escopoOrigemNome}
+          </span>
+        </>
+      ) : autor ? (
         <>
           <span className="text-muted-foreground/60">·</span>
           <span className="text-muted-foreground">{autor}</span>

@@ -2,13 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { achadoEventos, achados, fotos, vistorias, categoriaEnum } from "@/db/schema";
 import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
 import { invalidateAchados, invalidateVistorias } from "@/lib/cache-tags";
+import { applyAchadoStateInVistoria } from "@/lib/achado-state";
 import {
   actionError,
   type ActionError,
@@ -59,77 +60,14 @@ export async function setAchadoStateInVistoriaAction(
   const guard = editableGuard(ctx);
   if (guard) return guard;
 
-  let fotosToCleanup: { arquivoPath: string; thumbPath: string }[] = [];
-
-  await db.transaction(async (tx) => {
-    // Authz: garantir que o achado pertence a unidade da vistoria atual.
-    const [achadoCheck] = await tx
-      .select({ unidadeId: achados.unidadeId })
-      .from(achados)
-      .where(eq(achados.id, achadoId))
-      .limit(1);
-    if (!achadoCheck || achadoCheck.unidadeId !== ctx.unidadeId) {
-      throw new Error("Achado nao pertence a esta unidade.");
-    }
-
-    const existing = await tx
-      .select()
-      .from(achadoEventos)
-      .where(
-        and(
-          eq(achadoEventos.achadoId, achadoId),
-          eq(achadoEventos.vistoriaId, vistoriaId),
-        ),
-      )
-      .limit(1);
-
-    const previousTipo = existing[0]?.tipo;
-
-    if (state === "none") {
-      if (existing.length > 0) {
-        fotosToCleanup = await tx
-          .select({ arquivoPath: fotos.arquivoPath, thumbPath: fotos.thumbPath })
-          .from(fotos)
-          .where(eq(fotos.achadoEventoId, existing[0].id));
-        await tx
-          .delete(achadoEventos)
-          .where(eq(achadoEventos.id, existing[0].id));
-      }
-      if (previousTipo === "resolvido") {
-        await tx
-          .update(achados)
-          .set({ status: "aberto", vistoriaResolvidoId: null })
-          .where(eq(achados.id, achadoId));
-      }
-      return;
-    }
-
-    if (existing.length > 0) {
-      // Preserve fotos and notaExtra by only updating tipo
-      await tx
-        .update(achadoEventos)
-        .set({ tipo: state })
-        .where(eq(achadoEventos.id, existing[0].id));
-    } else {
-      await tx.insert(achadoEventos).values({
-        achadoId,
-        vistoriaId,
-        tipo: state,
-      });
-    }
-
-    if (state === "resolvido") {
-      await tx
-        .update(achados)
-        .set({ status: "resolvido", vistoriaResolvidoId: vistoriaId })
-        .where(eq(achados.id, achadoId));
-    } else if (previousTipo === "resolvido") {
-      await tx
-        .update(achados)
-        .set({ status: "aberto", vistoriaResolvidoId: null })
-        .where(eq(achados.id, achadoId));
-    }
-  });
+  const { fotosToCleanup } = await db.transaction((tx) =>
+    applyAchadoStateInVistoria(tx, {
+      vistoriaId,
+      achadoId,
+      state,
+      expectedUnidadeId: ctx.unidadeId,
+    }),
+  );
 
   await deleteFotosFromStorage(fotosToCleanup);
   revalidatePath(vistoriaPath(ctx));

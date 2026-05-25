@@ -109,6 +109,7 @@ export default async function VistoriaPage({
       with: {
         fotos: { orderBy: (f, { asc }) => asc(f.ordem) },
         achado: true,
+        escopoOrigem: true,
       },
       orderBy: asc(achadoEventos.createdAt),
     }),
@@ -400,7 +401,11 @@ export default async function VistoriaPage({
                     // So o evento "criado" e editavel — eventos "resolvido"
                     // retroativos sao registros historicos read-only.
                     editable={isDraft && ev.tipo === "criado"}
+                    // Quando o evento veio via escopo, autor passa a ser
+                    // "via escopo: X" em vez do vistoriador da vistoria —
+                    // foi outra pessoa que registrou, nao a engenharia.
                     autor={vistoria.vistoriadorNome}
+                    escopoOrigemNome={ev.escopoOrigem?.nome ?? null}
                     dateFmt={dateFmt}
                     evento={{
                       id: ev.id,

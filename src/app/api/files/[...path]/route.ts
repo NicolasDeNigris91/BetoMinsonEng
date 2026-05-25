@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
-import { eq, and, gt, or } from "drizzle-orm";
+import { eq, and, gt, or, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { achadoEventos, fotos, shareTokens } from "@/db/schema";
+import {
+  achadoEventos,
+  escopoAchados,
+  escopoShareTokens,
+  fotos,
+  shareTokens,
+} from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
 import { fileExists, readFileBuffer } from "@/lib/storage";
 
@@ -45,6 +51,85 @@ async function isAccessibleViaToken(
   return !!row;
 }
 
+/**
+ * Token de escopo (link do profissional) libera fotos de duas origens:
+ *  1. Fotos de eventos registrados POR esse escopo
+ *     (achadoEventos.escopoOrigemId === escopo do token) — fotos da
+ *     execucao do servico.
+ *  2. Fotos dos eventos "criado" dos achados que estao em escopoAchados
+ *     do token — contexto visual do problema que o profissional precisa
+ *     resolver.
+ *
+ * Fotos de eventos de outras origens (admin, outro escopo) ficam fora.
+ */
+async function isAccessibleViaEscopoToken(
+  relativePath: string,
+  token: string,
+): Promise<boolean> {
+  // Caso 1: fotos da execucao do proprio escopo.
+  const [execRow] = await db
+    .select({ tokenId: escopoShareTokens.id })
+    .from(escopoShareTokens)
+    .innerJoin(
+      achadoEventos,
+      eq(achadoEventos.escopoOrigemId, escopoShareTokens.escopoId),
+    )
+    .innerJoin(
+      fotos,
+      and(
+        eq(fotos.achadoEventoId, achadoEventos.id),
+        or(
+          eq(fotos.arquivoPath, relativePath),
+          eq(fotos.thumbPath, relativePath),
+        ),
+      ),
+    )
+    .where(
+      and(
+        eq(escopoShareTokens.token, token),
+        isNull(escopoShareTokens.revogadoEm),
+      ),
+    )
+    .limit(1);
+
+  if (execRow) return true;
+
+  // Caso 2: foto do evento 'criado' de um achado do escopo (contexto).
+  const [contextoRow] = await db
+    .select({ tokenId: escopoShareTokens.id })
+    .from(escopoShareTokens)
+    .innerJoin(
+      escopoAchados,
+      eq(escopoAchados.escopoId, escopoShareTokens.escopoId),
+    )
+    .innerJoin(
+      achadoEventos,
+      and(
+        eq(achadoEventos.achadoId, escopoAchados.achadoId),
+        eq(achadoEventos.tipo, "criado"),
+      ),
+    )
+    .innerJoin(
+      fotos,
+      and(
+        eq(fotos.achadoEventoId, achadoEventos.id),
+        or(
+          eq(fotos.arquivoPath, relativePath),
+          eq(fotos.thumbPath, relativePath),
+        ),
+      ),
+    )
+    .where(
+      and(
+        eq(escopoShareTokens.token, token),
+        isNull(escopoShareTokens.revogadoEm),
+      ),
+    )
+    .limit(1);
+
+  return !!contextoRow;
+}
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ path: string[] }> },
@@ -57,7 +142,10 @@ export async function GET(
 
   const allowed =
     (await isLoggedIn()) ||
-    (token ? await isAccessibleViaToken(relativePath, token) : false);
+    (token
+      ? (await isAccessibleViaToken(relativePath, token)) ||
+        (await isAccessibleViaEscopoToken(relativePath, token))
+      : false);
 
   if (!allowed) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

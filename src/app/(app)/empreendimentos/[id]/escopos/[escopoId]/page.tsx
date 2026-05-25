@@ -1,19 +1,24 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { eq, and, asc } from "drizzle-orm";
-import { ClipboardList } from "lucide-react";
+import { eq, and, asc, desc, inArray, isNull } from "drizzle-orm";
+import { CheckCircle2, ClipboardList, MessageSquare } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/db";
 import {
+  achadoEventos,
   achados,
   empreendimentos,
   escopoAchados,
+  escopoShareTokens,
   escopos,
+  fotos,
   unidades,
+  vistorias,
   CATEGORIA_LABELS,
   type Categoria,
 } from "@/db/schema";
+import { env } from "@/lib/env";
 import { parseUuidOrNotFound } from "@/lib/route-params";
 import { getDateFormat } from "@/lib/date-format-server";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -26,6 +31,7 @@ import { PrazoBadge } from "@/components/prazo-badge";
 import { EscopoActionsBar } from "./escopo-actions-bar";
 import { RemoverAchadoButton } from "./remover-achado-button";
 import { AdicionarAchadosDialog } from "./adicionar-achados-dialog";
+import { EscopoSharePanel } from "./share-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +65,7 @@ export default async function EscopoDetailPage({
   const escopoId = parseUuidOrNotFound(rawEscopoId);
   const dateFmt = await getDateFormat();
 
-  const [[emp], [escopo], itens, candidatosRaw] = await Promise.all([
+  const [[emp], [escopo], itens, candidatosRaw, shareTokens] = await Promise.all([
     db
       .select()
       .from(empreendimentos)
@@ -119,9 +125,83 @@ export default async function EscopoDetailPage({
         ),
       )
       .orderBy(asc(unidades.ordem), asc(unidades.nome), asc(achados.categoria)),
+    db
+      .select({
+        id: escopoShareTokens.id,
+        token: escopoShareTokens.token,
+        criadoEm: escopoShareTokens.criadoEm,
+      })
+      .from(escopoShareTokens)
+      .where(
+        and(
+          eq(escopoShareTokens.escopoId, escopoId),
+          isNull(escopoShareTokens.revogadoEm),
+        ),
+      )
+      .orderBy(asc(escopoShareTokens.criadoEm)),
   ]);
 
   if (!emp || !escopo) notFound();
+
+  // Eventos registrados pelo profissional via este escopo (resolvido +
+  // persiste, com fotos e notas). Carregamento separado pra nao inflar a
+  // query principal de achados — so dispara se ha achados no escopo.
+  const achadoIdsArr = itens.map((i) => i.achadoId);
+  const eventosViaEscopo =
+    achadoIdsArr.length > 0
+      ? await db.query.achadoEventos.findMany({
+          where: and(
+            eq(achadoEventos.escopoOrigemId, escopoId),
+            inArray(achadoEventos.achadoId, achadoIdsArr),
+          ),
+          with: {
+            fotos: { orderBy: asc(fotos.ordem) },
+          },
+        })
+      : [];
+  const eventoPorAchado = new Map<string, (typeof eventosViaEscopo)[number]>();
+  for (const ev of eventosViaEscopo) {
+    eventoPorAchado.set(ev.achadoId, ev);
+  }
+
+  // Pra cada achado resolvido por outro contexto (admin direto ou outro
+  // escopo), descobrir QUEM resolveu pra exibir nome em vez de "outro
+  // contexto" generico. Pega o evento 'resolvido' mais recente — eventos
+  // anteriores ficam registrados no historico, mas o que vale pro estado
+  // atual e o ultimo.
+  const resolucoes =
+    achadoIdsArr.length > 0
+      ? await db
+          .select({
+            achadoId: achadoEventos.achadoId,
+            escopoNome: escopos.nome,
+            vistoriadorNome: vistorias.vistoriadorNome,
+            createdAt: achadoEventos.createdAt,
+          })
+          .from(achadoEventos)
+          .innerJoin(vistorias, eq(vistorias.id, achadoEventos.vistoriaId))
+          .leftJoin(escopos, eq(escopos.id, achadoEventos.escopoOrigemId))
+          .where(
+            and(
+              eq(achadoEventos.tipo, "resolvido"),
+              inArray(achadoEventos.achadoId, achadoIdsArr),
+            ),
+          )
+          .orderBy(desc(achadoEventos.createdAt))
+      : [];
+  const resolvedorPorAchado = new Map<
+    string,
+    { por: string; createdAt: Date }
+  >();
+  for (const r of resolucoes) {
+    if (resolvedorPorAchado.has(r.achadoId)) continue; // ja pegou o mais recente
+    const por =
+      r.escopoNome ??
+      (r.vistoriadorNome
+        ? `${r.vistoriadorNome} (vistoria)`
+        : "vistoria de inspecao");
+    resolvedorPorAchado.set(r.achadoId, { por, createdAt: r.createdAt });
+  }
 
   // Agrupar por unidade pra render.
   type ItemRow = (typeof itens)[number];
@@ -202,6 +282,19 @@ export default async function EscopoDetailPage({
         <EscopoActionsBar escopo={escopo} nAchados={nAchados} />
       </div>
 
+      {nAchados > 0 ? (
+        <EscopoSharePanel
+          escopoId={escopo.id}
+          baseUrl={env.BASE_URL}
+          tokens={shareTokens.map((t) => ({
+            id: t.id,
+            token: t.token,
+            criadoEm: t.criadoEm.toISOString(),
+          }))}
+          dateFmt={dateFmt}
+        />
+      ) : null}
+
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
@@ -259,6 +352,16 @@ export default async function EscopoDetailPage({
                 <div className="divide-y">
                   {g.itens.map((it) => {
                     const cat = it.categoria as Categoria;
+                    const ev = eventoPorAchado.get(it.achadoId);
+                    // Decide o badge de estado considerando 3 cenarios:
+                    //   1. Profissional deste escopo agiu (resolvido ou persiste)
+                    //   2. Achado resolvido, mas por outro contexto (admin / outro escopo)
+                    //   3. Pendente (status aberto, sem evento neste escopo)
+                    const resolvidoEmOutro =
+                      it.status === "resolvido" && ev?.tipo !== "resolvido";
+                    const resolvedorOutro = resolvidoEmOutro
+                      ? resolvedorPorAchado.get(it.achadoId)
+                      : null;
                     return (
                       <div
                         key={it.achadoId}
@@ -268,7 +371,7 @@ export default async function EscopoDetailPage({
                           "border-l-4",
                         )}
                       >
-                        <div className="min-w-0 flex-1 space-y-1">
+                        <div className="min-w-0 flex-1 space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
                             <Badge
                               variant="outline"
@@ -288,18 +391,76 @@ export default async function EscopoDetailPage({
                               prazoEm={it.prazoEm}
                               resolvido={it.status === "resolvido"}
                             />
-                            {it.status === "resolvido" ? (
+                            {ev?.tipo === "resolvido" ? (
                               <Badge
                                 variant="outline"
                                 className="border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
                               >
-                                resolvido
+                                <CheckCircle2 className="mr-1 size-3" />
+                                resolvido por {escopo.nome}
+                              </Badge>
+                            ) : ev?.tipo === "persiste" ? (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+                              >
+                                <MessageSquare className="mr-1 size-3" />
+                                persiste — {escopo.nome}
+                              </Badge>
+                            ) : resolvidoEmOutro && resolvedorOutro ? (
+                              <Badge
+                                variant="outline"
+                                className="border-gray-300 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                              >
+                                <CheckCircle2 className="mr-1 size-3" />
+                                resolvido por {resolvedorOutro.por}
                               </Badge>
                             ) : null}
                           </div>
                           <p className="text-sm whitespace-pre-line">
                             {it.descricao}
                           </p>
+
+                          {ev ? (
+                            <div className="mt-2 rounded-md border border-l-2 border-l-brand bg-brand/[0.03] p-2.5 space-y-2">
+                              <p className="font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
+                                <span className="text-foreground font-semibold">
+                                  {escopo.nome}
+                                </span>{" "}
+                                registrou em{" "}
+                                <span className="text-foreground">
+                                  {formatDateTime(ev.createdAt, dateFmt)}
+                                </span>
+                              </p>
+                              {ev.notaExtra ? (
+                                <p className="border-l-2 border-muted-foreground/30 pl-3 text-sm italic whitespace-pre-line">
+                                  “{ev.notaExtra}”
+                                </p>
+                              ) : null}
+                              {ev.fotos.length > 0 ? (
+                                <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                                  {ev.fotos.map((f) => (
+                                    <a
+                                      key={f.id}
+                                      href={`/api/files/${f.arquivoPath}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="block aspect-square overflow-hidden rounded border bg-muted hover:opacity-90"
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={`/api/files/${f.thumbPath}`}
+                                        alt={f.legenda ?? "Foto da execucao"}
+                                        loading="lazy"
+                                        decoding="async"
+                                        className="h-full w-full object-cover"
+                                      />
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                         </div>
                         <RemoverAchadoButton
                           escopoId={escopo.id}

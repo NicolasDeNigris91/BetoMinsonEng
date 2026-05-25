@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { db } from "@/db";
-import { achadoEventos, fotos, shareTokens, vistorias } from "@/db/schema";
+import {
+  achadoEventos,
+  escopoShareTokens,
+  fotos,
+  shareTokens,
+  vistorias,
+} from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
 import { getClientIp } from "@/lib/client-ip";
 import { detectImageKind } from "@/lib/image-mime";
@@ -37,6 +43,36 @@ async function uploadTokenAllowsVistoria(
         eq(shareTokens.vistoriaId, vistoriaId),
         eq(shareTokens.permiteUpload, true),
         gt(shareTokens.expiraEm, new Date()),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
+/**
+ * Token de escopo (link do profissional): autoriza upload de foto pra
+ * eventos que foram registrados ATRAVES desse mesmo escopo
+ * (achadoEventos.escopoOrigemId === escopo do token). Como cada acao do
+ * profissional grava esse campo no evento, esse e o vinculo natural — e
+ * impede o link do escopo de anexar foto em eventos de outro contexto
+ * (vistoria de inspecao, outro escopo).
+ */
+async function escopoTokenAllowsEvento(
+  token: string,
+  achadoEventoId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: escopoShareTokens.id })
+    .from(escopoShareTokens)
+    .innerJoin(
+      achadoEventos,
+      eq(achadoEventos.escopoOrigemId, escopoShareTokens.escopoId),
+    )
+    .where(
+      and(
+        eq(escopoShareTokens.token, token),
+        isNull(escopoShareTokens.revogadoEm),
+        eq(achadoEventos.id, achadoEventoId),
       ),
     )
     .limit(1);
@@ -178,9 +214,13 @@ export async function POST(req: Request) {
   }
 
   if (!sessionOk) {
-    const tokenOk = uploadToken
-      ? await uploadTokenAllowsVistoria(uploadToken, evento.vistoriaId)
-      : false;
+    // Aceita 2 tipos de token: vistoria (share_tokens.permiteUpload, fluxo
+    // celular do vistoriador) ou escopo (escopo_share_tokens, fluxo do
+    // profissional). Testa primeiro o mais comum e cai pro outro.
+    const tokenOk =
+      Boolean(uploadToken) &&
+      ((await uploadTokenAllowsVistoria(uploadToken!, evento.vistoriaId)) ||
+        (await escopoTokenAllowsEvento(uploadToken!, evento.id)));
     if (!tokenOk) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
