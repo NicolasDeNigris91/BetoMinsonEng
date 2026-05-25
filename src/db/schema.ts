@@ -12,6 +12,7 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 export const categoriaEnum = pgEnum("categoria", [
@@ -135,6 +136,15 @@ export const achadoEventos = pgTable(
       .references(() => vistorias.id, { onDelete: "cascade" }),
     tipo: eventoTipoEnum("tipo").notNull(),
     notaExtra: text("nota_extra"),
+    // Quando setado, este evento foi registrado via link publico do
+    // profissional de um escopo (ordem de servico), nao pela engenharia.
+    // Vai pra mesma vistoria do achado pra UI ficar coesa, mas a
+    // procedencia continua identificavel pra autor / chip visual / PDF.
+    // FK SET NULL: deletar o escopo nao apaga o evento ja registrado.
+    escopoOrigemId: uuid("escopo_origem_id").references(
+      (): AnyPgColumn => escopos.id,
+      { onDelete: "set null" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -142,6 +152,7 @@ export const achadoEventos = pgTable(
   (t) => [
     index("achado_eventos_achado_idx").on(t.achadoId),
     index("achado_eventos_vistoria_idx").on(t.vistoriaId),
+    index("achado_eventos_escopo_origem_idx").on(t.escopoOrigemId),
     // Cada achado tem no maximo um evento por vistoria. Antes desta
     // constraint, duplo-clique em "Persiste"/"Resolvido" criava dois
     // eventos do mesmo tipo na mesma vistoria, sujando historico/PDF.
@@ -246,6 +257,30 @@ export const escopoAchados = pgTable(
   ],
 );
 
+// Link publico do profissional que executa o escopo. Analogo aos
+// share_tokens de vistoria, mas: aponta pra escopo (nao vistoria), nao
+// expira por tempo (so por revogacao manual) e o destinatario pode
+// MUTAR estado dos achados (marcar resolvido / persiste + foto + nota).
+// Decisao: tabela propria (em vez de estender share_tokens) pra nao
+// inflar a tabela atual com FKs nullable e diferenca semantica de
+// expiracao.
+export const escopoShareTokens = pgTable(
+  "escopo_share_tokens",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    escopoId: uuid("escopo_id")
+      .notNull()
+      .references(() => escopos.id, { onDelete: "cascade" }),
+    token: varchar("token", { length: 64 }).notNull().unique(),
+    // null = ativo. Set = revogado pelo admin (preserva historico).
+    revogadoEm: timestamp("revogado_em", { withTimezone: true }),
+    criadoEm: timestamp("criado_em", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("escopo_share_tokens_escopo_idx").on(t.escopoId)],
+);
+
 // Preparacao para migrar do APP_PASSWORD compartilhado pra usuarios
 // por pessoa. Tabela existe; auth ainda nao foi cabeada nela.
 //
@@ -325,6 +360,11 @@ export const achadoEventosRelations = relations(
       fields: [achadoEventos.vistoriaId],
       references: [vistorias.id],
     }),
+    escopoOrigem: one(escopos, {
+      fields: [achadoEventos.escopoOrigemId],
+      references: [escopos.id],
+      relationName: "evento_origem_escopo",
+    }),
     fotos: many(fotos),
   }),
 );
@@ -349,6 +389,7 @@ export const escoposRelations = relations(escopos, ({ one, many }) => ({
     references: [empreendimentos.id],
   }),
   itens: many(escopoAchados),
+  shareTokens: many(escopoShareTokens),
 }));
 
 export const escopoAchadosRelations = relations(escopoAchados, ({ one }) => ({
@@ -361,6 +402,16 @@ export const escopoAchadosRelations = relations(escopoAchados, ({ one }) => ({
     references: [achados.id],
   }),
 }));
+
+export const escopoShareTokensRelations = relations(
+  escopoShareTokens,
+  ({ one }) => ({
+    escopo: one(escopos, {
+      fields: [escopoShareTokens.escopoId],
+      references: [escopos.id],
+    }),
+  }),
+);
 
 export type Empreendimento = typeof empreendimentos.$inferSelect;
 export type NovoEmpreendimento = typeof empreendimentos.$inferInsert;
@@ -378,6 +429,8 @@ export type ShareToken = typeof shareTokens.$inferSelect;
 export type Escopo = typeof escopos.$inferSelect;
 export type NovoEscopo = typeof escopos.$inferInsert;
 export type EscopoAchado = typeof escopoAchados.$inferSelect;
+export type EscopoShareToken = typeof escopoShareTokens.$inferSelect;
+export type NovoEscopoShareToken = typeof escopoShareTokens.$inferInsert;
 
 export type Categoria = (typeof categoriaEnum.enumValues)[number];
 export type VistoriaStatus = (typeof vistoriaStatusEnum.enumValues)[number];
