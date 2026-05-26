@@ -11,10 +11,14 @@ import {
   type EventoTipo,
 } from "@/db/schema";
 import { AchadoFormDialog } from "./novo-achado-dialog";
-import { deleteAchadoAction } from "./actions";
+import { addComentarioEngenheiroAction, deleteAchadoAction } from "./actions";
 import { EventoEditor } from "./evento-editor";
 import type { FotoView } from "@/components/photo-uploader";
 import { PrazoBadge } from "@/components/prazo-badge";
+import {
+  ThreadComentarios,
+  type ComentarioView,
+} from "@/components/thread-comentarios";
 import { toast } from "sonner";
 import {
   CATEGORIA_BADGE_CLASS,
@@ -25,6 +29,8 @@ import {
 import { formatDateTime, type DateFormat } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { isNextRedirectError } from "@/lib/next-errors";
+
+const ENGENHARIA_NOME = "Roberto Minson";
 
 function fileUrl(path: string, token?: string): string {
   const base = `/api/files/${path}`;
@@ -57,6 +63,14 @@ type Props = {
    * audit por "via escopo: X" pra ficar claro que nao foi a engenharia.
    */
   escopoOrigemNome?: string | null;
+  /**
+   * Escopo onde a conversa entre engenharia e profissional acontece.
+   * Quando setado, o card renderiza o thread de comentarios. Normalmente
+   * coincide com a presenca de escopoOrigemNome.
+   */
+  escopoOrigemId?: string | null;
+  /** Mensagens trocadas no thread (achadoId, escopoOrigemId). Pode ser vazio. */
+  comentarios?: ComentarioView[];
   evento: {
     id: string;
     tipo: EventoTipo;
@@ -74,6 +88,8 @@ export function NovoAchadoCard({
   editable,
   autor,
   escopoOrigemNome,
+  escopoOrigemId,
+  comentarios,
   evento,
   shareToken,
   dateFmt,
@@ -223,6 +239,24 @@ export function NovoAchadoCard({
               </p>
             ) : null}
             {auditLine}
+            {escopoOrigemId ? (
+              <div className="pt-2 border-t border-dashed">
+                <ThreadComentarios
+                  comentarios={comentarios ?? []}
+                  meuPapel="engenharia"
+                  profissionalNome={escopoOrigemNome ?? "Profissional"}
+                  engenhariaNome={ENGENHARIA_NOME}
+                  onSubmit={async (texto) => {
+                    return addComentarioEngenheiroAction(
+                      escopoOrigemId,
+                      achado.id,
+                      texto,
+                    );
+                  }}
+                  dateFmt={dateFmt}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

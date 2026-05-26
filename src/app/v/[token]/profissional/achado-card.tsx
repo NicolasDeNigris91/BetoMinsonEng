@@ -15,6 +15,10 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  ThreadComentarios,
+  type ComentarioView,
+} from "@/components/thread-comentarios";
 import { usePhotoUpload } from "@/lib/use-photo-upload";
 import {
   CATEGORIA_BADGE_OUTLINE_CLASS,
@@ -22,11 +26,15 @@ import {
 } from "@/lib/category-styles";
 import { CATEGORIA_LABELS, type Categoria } from "@/db/schema";
 import { isNextRedirectError } from "@/lib/next-errors";
+import type { DateFormat } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
+  addComentarioViaTokenAction,
   setAchadoStateViaTokenAction,
   updateNotaViaTokenAction,
 } from "./actions";
+
+const ENGENHARIA_NOME = "Roberto Minson";
 
 export type AchadoCardData = {
   achadoId: string;
@@ -43,6 +51,8 @@ export type AchadoCardData = {
     notaExtra: string | null;
     fotos: { id: string; thumbPath: string; arquivoPath: string }[];
   } | null;
+  /** Conversa entre engenharia e este profissional no thread (achadoId, escopoId). */
+  comentarios: ComentarioView[];
   tratadoPorEsteFluxo: boolean;
   resolvidoEmOutro: boolean;
 };
@@ -50,9 +60,12 @@ export type AchadoCardData = {
 type Props = {
   token: string;
   data: AchadoCardData;
+  /** Nome do escopo, usado como nome do profissional no thread. */
+  escopoNome: string;
+  dateFmt: DateFormat;
 };
 
-export function AchadoCard({ token, data }: Props) {
+export function AchadoCard({ token, data, escopoNome, dateFmt }: Props) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [nota, setNota] = useState(data.evento?.notaExtra ?? "");
@@ -131,7 +144,7 @@ export function AchadoCard({ token, data }: Props) {
     return (
       <article
         className={cn(
-          "border border-l-4 rounded-lg bg-background p-4 opacity-70",
+          "border border-l-4 rounded-lg bg-background p-4 space-y-3 opacity-70",
           CATEGORIA_STRIPE_BORDER[data.categoria],
         )}
       >
@@ -140,6 +153,20 @@ export function AchadoCard({ token, data }: Props) {
           <Lock className="size-3.5" />
           Ja resolvido pela engenharia ou por outro escopo.
         </p>
+        {data.comentarios.length > 0 ? (
+          <div className="pt-2 border-t border-dashed">
+            <ThreadComentarios
+              comentarios={data.comentarios}
+              meuPapel="profissional"
+              profissionalNome={escopoNome}
+              engenhariaNome={ENGENHARIA_NOME}
+              onSubmit={async (texto) =>
+                addComentarioViaTokenAction(token, data.achadoId, texto)
+              }
+              dateFmt={dateFmt}
+            />
+          </div>
+        ) : null}
       </article>
     );
   }
@@ -233,6 +260,19 @@ export function AchadoCard({ token, data }: Props) {
       ) : null}
 
       {evento ? <ExecutionPhotos token={token} evento={evento} /> : null}
+
+      <div className="pt-2 border-t border-dashed">
+        <ThreadComentarios
+          comentarios={data.comentarios}
+          meuPapel="profissional"
+          profissionalNome={escopoNome}
+          engenhariaNome={ENGENHARIA_NOME}
+          onSubmit={async (texto) =>
+            addComentarioViaTokenAction(token, data.achadoId, texto)
+          }
+          dateFmt={dateFmt}
+        />
+      </div>
     </article>
   );
 }

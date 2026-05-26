@@ -4,6 +4,7 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { Lock } from "lucide-react";
 import { db } from "@/db";
 import {
+  achadoComentarios,
   achadoEventos,
   achados,
   empreendimentos,
@@ -14,6 +15,7 @@ import {
   unidades,
   type Categoria,
 } from "@/db/schema";
+import { getDateFormat } from "@/lib/date-format-server";
 import { AchadoCard, type AchadoCardData } from "./achado-card";
 
 export const dynamic = "force-dynamic";
@@ -78,6 +80,8 @@ export default async function EscopoProfissionalPage({
     );
   }
 
+  const dateFmt = await getDateFormat();
+
   // Achados do escopo + unidade. Status atual vem de achados.status — pode
   // estar resolvido por outra fonte (admin / outro escopo); a UI mostra
   // disabled nesse caso pra evitar conflito.
@@ -136,6 +140,29 @@ export default async function EscopoProfissionalPage({
   >();
   for (const ev of eventosProfissional) {
     eventoProfissionalPorAchado.set(ev.achadoId, ev);
+  }
+
+  // Comentarios do thread (engenharia ↔ profissional) pra os achados deste
+  // escopo. Vem ordenados por createdAt asc — mais antigo primeiro, como
+  // chat. Agrupa por achadoId pra entregar pro AchadoCard.
+  const comentariosRows =
+    achadoIds.length > 0
+      ? await db
+          .select()
+          .from(achadoComentarios)
+          .where(
+            and(
+              eq(achadoComentarios.escopoId, share.escopoId),
+              inArray(achadoComentarios.achadoId, achadoIds),
+            ),
+          )
+          .orderBy(asc(achadoComentarios.createdAt))
+      : [];
+  const comentariosPorAchado = new Map<string, typeof comentariosRows>();
+  for (const c of comentariosRows) {
+    const arr = comentariosPorAchado.get(c.achadoId) ?? [];
+    arr.push(c);
+    comentariosPorAchado.set(c.achadoId, arr);
   }
 
   // Foto original do problema = primeiro evento "criado" do achado, com
@@ -270,13 +297,26 @@ export default async function EscopoProfissionalPage({
                         })),
                       }
                     : null,
+                  comentarios: (comentariosPorAchado.get(it.achadoId) ?? []).map(
+                    (c) => ({
+                      id: c.id,
+                      autor: c.autor,
+                      texto: c.texto,
+                      createdAt: c.createdAt,
+                    }),
+                  ),
                   tratadoPorEsteFluxo,
                   resolvidoEmOutro,
                 };
 
                 return (
                   <li key={it.achadoId}>
-                    <AchadoCard token={token} data={data} />
+                    <AchadoCard
+                      token={token}
+                      data={data}
+                      escopoNome={share.escopoNome}
+                      dateFmt={dateFmt}
+                    />
                   </li>
                 );
               })}

@@ -41,6 +41,11 @@ export const eventoTipoEnum = pgEnum("evento_tipo", [
   "nota",
 ]);
 
+export const comentarioAutorEnum = pgEnum("comentario_autor", [
+  "profissional",
+  "engenharia",
+]);
+
 export const empreendimentos = pgTable("empreendimentos", {
   id: uuid("id").primaryKey().defaultRandom(),
   nome: varchar("nome", { length: 200 }).notNull(),
@@ -281,6 +286,38 @@ export const escopoShareTokens = pgTable(
   (t) => [index("escopo_share_tokens_escopo_idx").on(t.escopoId)],
 );
 
+// Thread de comentarios entre engenharia e profissional sobre um achado,
+// no contexto de UM escopo. Como achado pode pertencer a varios escopos
+// (M:N), a chave logica do thread eh (achadoId, escopoId) — assim cada
+// profissional tem sua conversa isolada com a engenharia. Os comentarios
+// vivem em paralelo aos achadoEventos: eventos representam transicoes
+// de estado (persiste/resolvido); comentarios sao a conversa pra negociar
+// essas transicoes.
+export const achadoComentarios = pgTable(
+  "achado_comentarios",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    achadoId: uuid("achado_id")
+      .notNull()
+      .references(() => achados.id, { onDelete: "cascade" }),
+    escopoId: uuid("escopo_id")
+      .notNull()
+      .references(() => escopos.id, { onDelete: "cascade" }),
+    autor: comentarioAutorEnum("autor").notNull(),
+    texto: text("texto").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("achado_comentarios_achado_escopo_idx").on(
+      t.achadoId,
+      t.escopoId,
+      t.createdAt,
+    ),
+  ],
+);
+
 // Preparacao para migrar do APP_PASSWORD compartilhado pra usuarios
 // por pessoa. Tabela existe; auth ainda nao foi cabeada nela.
 //
@@ -347,7 +384,22 @@ export const achadosRelations = relations(achados, ({ one, many }) => ({
     relationName: "achado_resolvido",
   }),
   eventos: many(achadoEventos),
+  comentarios: many(achadoComentarios),
 }));
+
+export const achadoComentariosRelations = relations(
+  achadoComentarios,
+  ({ one }) => ({
+    achado: one(achados, {
+      fields: [achadoComentarios.achadoId],
+      references: [achados.id],
+    }),
+    escopo: one(escopos, {
+      fields: [achadoComentarios.escopoId],
+      references: [escopos.id],
+    }),
+  }),
+);
 
 export const achadoEventosRelations = relations(
   achadoEventos,
@@ -432,10 +484,14 @@ export type EscopoAchado = typeof escopoAchados.$inferSelect;
 export type EscopoShareToken = typeof escopoShareTokens.$inferSelect;
 export type NovoEscopoShareToken = typeof escopoShareTokens.$inferInsert;
 
+export type AchadoComentario = typeof achadoComentarios.$inferSelect;
+export type NovoAchadoComentario = typeof achadoComentarios.$inferInsert;
+
 export type Categoria = (typeof categoriaEnum.enumValues)[number];
 export type VistoriaStatus = (typeof vistoriaStatusEnum.enumValues)[number];
 export type AchadoStatus = (typeof achadoStatusEnum.enumValues)[number];
 export type EventoTipo = (typeof eventoTipoEnum.enumValues)[number];
+export type ComentarioAutor = (typeof comentarioAutorEnum.enumValues)[number];
 
 export const CATEGORIA_LABELS: Record<Categoria, string> = {
   ELE: "Elétrica",
