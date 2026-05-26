@@ -2,10 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, sql, inArray } from "drizzle-orm";
+import { and, eq, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { achadoEventos, achados, fotos, vistorias, categoriaEnum } from "@/db/schema";
+import {
+  achadoComentarios,
+  achadoEventos,
+  achados,
+  categoriaEnum,
+  escopoAchados,
+  escopos,
+  fotos,
+  unidades,
+  vistorias,
+} from "@/db/schema";
 import { requireMutation } from "@/lib/require-mutation";
 import { deleteFotosFromStorage } from "@/lib/foto-storage";
 import { invalidateAchados, invalidateVistorias } from "@/lib/cache-tags";
@@ -71,6 +81,76 @@ export async function setAchadoStateInVistoriaAction(
 
   await deleteFotosFromStorage(fotosToCleanup);
   revalidatePath(vistoriaPath(ctx));
+  invalidateAchados();
+}
+
+const comentarioSchema = z.object({
+  texto: z
+    .string()
+    .trim()
+    .min(1, "Mensagem vazia.")
+    .max(2000, "Mensagem muito longa (máx. 2000 caracteres)."),
+});
+
+/**
+ * Adiciona um comentario da engenharia no thread (achadoId, escopoId).
+ * Thread vive em paralelo aos achadoEventos: eventos representam transicoes
+ * de estado (persiste/resolvido); comentarios sao a negociacao em volta.
+ *
+ * Auth: sessao admin (`requireMutation`). Achado precisa estar no escopo —
+ * sem essa amarra, um id forjado de outro escopo passaria livre.
+ */
+export async function addComentarioEngenheiroAction(
+  escopoId: string,
+  achadoId: string,
+  texto: string,
+): Promise<VoidActionResult> {
+  await requireMutation();
+
+  const parsed = comentarioSchema.safeParse({ texto });
+  if (!parsed.success) {
+    return actionError(parsed.error.issues[0]?.message ?? "Comentário inválido.");
+  }
+
+  // Resolve achado + escopo + checa vinculo numa unica query.
+  const [vinculo] = await db
+    .select({
+      empreendimentoId: unidades.empreendimentoId,
+      unidadeId: achados.unidadeId,
+      escopoEmpreendimentoId: escopos.empreendimentoId,
+    })
+    .from(escopoAchados)
+    .innerJoin(achados, eq(achados.id, escopoAchados.achadoId))
+    .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
+    .innerJoin(escopos, eq(escopos.id, escopoAchados.escopoId))
+    .where(
+      and(
+        eq(escopoAchados.escopoId, escopoId),
+        eq(escopoAchados.achadoId, achadoId),
+      ),
+    )
+    .limit(1);
+
+  if (!vinculo) {
+    return actionError("Achado não pertence a este escopo.");
+  }
+
+  await db.insert(achadoComentarios).values({
+    achadoId,
+    escopoId,
+    autor: "engenharia",
+    texto: parsed.data.texto,
+  });
+
+  // Comentario vive em (achado, escopo) e pode aparecer em multiplas
+  // vistorias do mesmo achado. Revalida unidade (cobre todas as vistorias)
+  // e a pagina do escopo.
+  revalidatePath(
+    `/empreendimentos/${vinculo.empreendimentoId}/unidades/${vinculo.unidadeId}`,
+  );
+  revalidatePath(
+    `/empreendimentos/${vinculo.escopoEmpreendimentoId}/escopos/${escopoId}`,
+  );
   invalidateAchados();
 }
 

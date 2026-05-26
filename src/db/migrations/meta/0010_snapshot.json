@@ -1,0 +1,1347 @@
+{
+  "id": "5a97d4d2-4d17-43f7-815a-1de408317fc8",
+  "prevId": "5f2d1702-b95a-4004-b32e-1d85131640a4",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.achado_comentarios": {
+      "name": "achado_comentarios",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "achado_id": {
+          "name": "achado_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "escopo_id": {
+          "name": "escopo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "autor": {
+          "name": "autor",
+          "type": "comentario_autor",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "texto": {
+          "name": "texto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "achado_comentarios_achado_escopo_idx": {
+          "name": "achado_comentarios_achado_escopo_idx",
+          "columns": [
+            {
+              "expression": "achado_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "escopo_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "achado_comentarios_achado_id_achados_id_fk": {
+          "name": "achado_comentarios_achado_id_achados_id_fk",
+          "tableFrom": "achado_comentarios",
+          "tableTo": "achados",
+          "columnsFrom": [
+            "achado_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "achado_comentarios_escopo_id_escopos_id_fk": {
+          "name": "achado_comentarios_escopo_id_escopos_id_fk",
+          "tableFrom": "achado_comentarios",
+          "tableTo": "escopos",
+          "columnsFrom": [
+            "escopo_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.achado_eventos": {
+      "name": "achado_eventos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "achado_id": {
+          "name": "achado_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vistoria_id": {
+          "name": "vistoria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "evento_tipo",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nota_extra": {
+          "name": "nota_extra",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "escopo_origem_id": {
+          "name": "escopo_origem_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "achado_eventos_achado_idx": {
+          "name": "achado_eventos_achado_idx",
+          "columns": [
+            {
+              "expression": "achado_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "achado_eventos_vistoria_idx": {
+          "name": "achado_eventos_vistoria_idx",
+          "columns": [
+            {
+              "expression": "vistoria_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "achado_eventos_escopo_origem_idx": {
+          "name": "achado_eventos_escopo_origem_idx",
+          "columns": [
+            {
+              "expression": "escopo_origem_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "achado_eventos_achado_vistoria_unique": {
+          "name": "achado_eventos_achado_vistoria_unique",
+          "columns": [
+            {
+              "expression": "achado_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "vistoria_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "achado_eventos_achado_id_achados_id_fk": {
+          "name": "achado_eventos_achado_id_achados_id_fk",
+          "tableFrom": "achado_eventos",
+          "tableTo": "achados",
+          "columnsFrom": [
+            "achado_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "achado_eventos_vistoria_id_vistorias_id_fk": {
+          "name": "achado_eventos_vistoria_id_vistorias_id_fk",
+          "tableFrom": "achado_eventos",
+          "tableTo": "vistorias",
+          "columnsFrom": [
+            "vistoria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "achado_eventos_escopo_origem_id_escopos_id_fk": {
+          "name": "achado_eventos_escopo_origem_id_escopos_id_fk",
+          "tableFrom": "achado_eventos",
+          "tableTo": "escopos",
+          "columnsFrom": [
+            "escopo_origem_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.achados": {
+      "name": "achados",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "unidade_id": {
+          "name": "unidade_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "categoria": {
+          "name": "categoria",
+          "type": "categoria",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "local": {
+          "name": "local",
+          "type": "varchar(300)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "descricao": {
+          "name": "descricao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "achado_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'aberto'"
+        },
+        "vistoria_origem_id": {
+          "name": "vistoria_origem_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vistoria_resolvido_id": {
+          "name": "vistoria_resolvido_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prazo_em": {
+          "name": "prazo_em",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ordem": {
+          "name": "ordem",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "achados_unidade_idx": {
+          "name": "achados_unidade_idx",
+          "columns": [
+            {
+              "expression": "unidade_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "achados_unidade_status_idx": {
+          "name": "achados_unidade_status_idx",
+          "columns": [
+            {
+              "expression": "unidade_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "achados_vistoria_origem_idx": {
+          "name": "achados_vistoria_origem_idx",
+          "columns": [
+            {
+              "expression": "vistoria_origem_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "achados_prazo_idx": {
+          "name": "achados_prazo_idx",
+          "columns": [
+            {
+              "expression": "prazo_em",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "achados_unidade_id_unidades_id_fk": {
+          "name": "achados_unidade_id_unidades_id_fk",
+          "tableFrom": "achados",
+          "tableTo": "unidades",
+          "columnsFrom": [
+            "unidade_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "achados_vistoria_origem_id_vistorias_id_fk": {
+          "name": "achados_vistoria_origem_id_vistorias_id_fk",
+          "tableFrom": "achados",
+          "tableTo": "vistorias",
+          "columnsFrom": [
+            "vistoria_origem_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "achados_vistoria_resolvido_id_vistorias_id_fk": {
+          "name": "achados_vistoria_resolvido_id_vistorias_id_fk",
+          "tableFrom": "achados",
+          "tableTo": "vistorias",
+          "columnsFrom": [
+            "vistoria_resolvido_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.empreendimentos": {
+      "name": "empreendimentos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nome": {
+          "name": "nome",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cliente": {
+          "name": "cliente",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "endereco": {
+          "name": "endereco",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "logo_url": {
+          "name": "logo_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "observacoes": {
+          "name": "observacoes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.escopo_achados": {
+      "name": "escopo_achados",
+      "schema": "",
+      "columns": {
+        "escopo_id": {
+          "name": "escopo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "achado_id": {
+          "name": "achado_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordem": {
+          "name": "ordem",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "adicionado_em": {
+          "name": "adicionado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "escopo_achados_achado_idx": {
+          "name": "escopo_achados_achado_idx",
+          "columns": [
+            {
+              "expression": "achado_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "escopo_achados_escopo_id_escopos_id_fk": {
+          "name": "escopo_achados_escopo_id_escopos_id_fk",
+          "tableFrom": "escopo_achados",
+          "tableTo": "escopos",
+          "columnsFrom": [
+            "escopo_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "escopo_achados_achado_id_achados_id_fk": {
+          "name": "escopo_achados_achado_id_achados_id_fk",
+          "tableFrom": "escopo_achados",
+          "tableTo": "achados",
+          "columnsFrom": [
+            "achado_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "escopo_achados_escopo_id_achado_id_pk": {
+          "name": "escopo_achados_escopo_id_achado_id_pk",
+          "columns": [
+            "escopo_id",
+            "achado_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.escopo_share_tokens": {
+      "name": "escopo_share_tokens",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "escopo_id": {
+          "name": "escopo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revogado_em": {
+          "name": "revogado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "escopo_share_tokens_escopo_idx": {
+          "name": "escopo_share_tokens_escopo_idx",
+          "columns": [
+            {
+              "expression": "escopo_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "escopo_share_tokens_escopo_id_escopos_id_fk": {
+          "name": "escopo_share_tokens_escopo_id_escopos_id_fk",
+          "tableFrom": "escopo_share_tokens",
+          "tableTo": "escopos",
+          "columnsFrom": [
+            "escopo_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "escopo_share_tokens_token_unique": {
+          "name": "escopo_share_tokens_token_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.escopos": {
+      "name": "escopos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "empreendimento_id": {
+          "name": "empreendimento_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nome": {
+          "name": "nome",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "descricao": {
+          "name": "descricao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "escopos_empreendimento_idx": {
+          "name": "escopos_empreendimento_idx",
+          "columns": [
+            {
+              "expression": "empreendimento_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "escopos_empreendimento_id_empreendimentos_id_fk": {
+          "name": "escopos_empreendimento_id_empreendimentos_id_fk",
+          "tableFrom": "escopos",
+          "tableTo": "empreendimentos",
+          "columnsFrom": [
+            "empreendimento_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.fotos": {
+      "name": "fotos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "achado_evento_id": {
+          "name": "achado_evento_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "arquivo_path": {
+          "name": "arquivo_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "thumb_path": {
+          "name": "thumb_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "legenda": {
+          "name": "legenda",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ordem": {
+          "name": "ordem",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "fotos_evento_idx": {
+          "name": "fotos_evento_idx",
+          "columns": [
+            {
+              "expression": "achado_evento_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fotos_achado_evento_id_achado_eventos_id_fk": {
+          "name": "fotos_achado_evento_id_achado_eventos_id_fk",
+          "tableFrom": "fotos",
+          "tableTo": "achado_eventos",
+          "columnsFrom": [
+            "achado_evento_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.rate_limit_buckets": {
+      "name": "rate_limit_buckets",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "varchar(200)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "reset_at": {
+          "name": "reset_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "rate_limit_buckets_reset_idx": {
+          "name": "rate_limit_buckets_reset_idx",
+          "columns": [
+            {
+              "expression": "reset_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.share_tokens": {
+      "name": "share_tokens",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "vistoria_id": {
+          "name": "vistoria_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expira_em": {
+          "name": "expira_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permite_upload": {
+          "name": "permite_upload",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "share_tokens_vistoria_idx": {
+          "name": "share_tokens_vistoria_idx",
+          "columns": [
+            {
+              "expression": "vistoria_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "share_tokens_vistoria_id_vistorias_id_fk": {
+          "name": "share_tokens_vistoria_id_vistorias_id_fk",
+          "tableFrom": "share_tokens",
+          "tableTo": "vistorias",
+          "columnsFrom": [
+            "vistoria_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "share_tokens_token_unique": {
+          "name": "share_tokens_token_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.unidades": {
+      "name": "unidades",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "empreendimento_id": {
+          "name": "empreendimento_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nome": {
+          "name": "nome",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observacoes": {
+          "name": "observacoes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ordem": {
+          "name": "ordem",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "unidades_empreendimento_idx": {
+          "name": "unidades_empreendimento_idx",
+          "columns": [
+            {
+              "expression": "empreendimento_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "unidades_empreendimento_id_empreendimentos_id_fk": {
+          "name": "unidades_empreendimento_id_empreendimentos_id_fk",
+          "tableFrom": "unidades",
+          "tableTo": "empreendimentos",
+          "columnsFrom": [
+            "empreendimento_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.usuarios": {
+      "name": "usuarios",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "nome": {
+          "name": "nome",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "senha_hash": {
+          "name": "senha_hash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "desativado_em": {
+          "name": "desativado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ultimo_acesso_em": {
+          "name": "ultimo_acesso_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "atualizado_em": {
+          "name": "atualizado_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "usuarios_email_idx": {
+          "name": "usuarios_email_idx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "usuarios_email_unique": {
+          "name": "usuarios_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.vistorias": {
+      "name": "vistorias",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "unidade_id": {
+          "name": "unidade_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vistoriador_nome": {
+          "name": "vistoriador_nome",
+          "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "vistoria_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'rascunho'"
+        },
+        "observacoes_gerais": {
+          "name": "observacoes_gerais",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finalizada_em": {
+          "name": "finalizada_em",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "vistorias_unidade_idx": {
+          "name": "vistorias_unidade_idx",
+          "columns": [
+            {
+              "expression": "unidade_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "vistorias_data_idx": {
+          "name": "vistorias_data_idx",
+          "columns": [
+            {
+              "expression": "data",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "vistorias_unidade_id_unidades_id_fk": {
+          "name": "vistorias_unidade_id_unidades_id_fk",
+          "tableFrom": "vistorias",
+          "tableTo": "unidades",
+          "columnsFrom": [
+            "unidade_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.achado_status": {
+      "name": "achado_status",
+      "schema": "public",
+      "values": [
+        "aberto",
+        "resolvido"
+      ]
+    },
+    "public.categoria": {
+      "name": "categoria",
+      "schema": "public",
+      "values": [
+        "ELE",
+        "HID",
+        "HVAC",
+        "PISCINA",
+        "ASP",
+        "SIS"
+      ]
+    },
+    "public.comentario_autor": {
+      "name": "comentario_autor",
+      "schema": "public",
+      "values": [
+        "profissional",
+        "engenharia"
+      ]
+    },
+    "public.evento_tipo": {
+      "name": "evento_tipo",
+      "schema": "public",
+      "values": [
+        "criado",
+        "persiste",
+        "resolvido",
+        "nota"
+      ]
+    },
+    "public.vistoria_status": {
+      "name": "vistoria_status",
+      "schema": "public",
+      "values": [
+        "rascunho",
+        "finalizada"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { and, eq, isNull } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "@/db";
 import {
+  achadoComentarios,
   achadoEventos,
   achados,
   escopoAchados,
@@ -192,4 +194,57 @@ export async function updateNotaViaTokenAction(
 
   revalidatePath(`/v/${token}/profissional`);
   revalidatePath(unidadePath(achadoCtx.empreendimentoId, achadoCtx.unidadeId));
+}
+
+const comentarioSchema = z.object({
+  texto: z
+    .string()
+    .trim()
+    .min(1, "Mensagem vazia.")
+    .max(2000, "Mensagem muito longa (máx. 2000 caracteres)."),
+});
+
+/**
+ * Adiciona um comentario do profissional no thread (achadoId, escopoId).
+ * Espelha addComentarioEngenheiroAction do lado admin — mesma tabela,
+ * mesma chave logica, autor diferente.
+ *
+ * Auth: token de escopo nao revogado. Achado precisa estar no escopo.
+ */
+export async function addComentarioViaTokenAction(
+  token: string,
+  achadoId: string,
+  texto: string,
+): Promise<VoidActionResult> {
+  const parsed = comentarioSchema.safeParse({ texto });
+  if (!parsed.success) {
+    return actionError(parsed.error.issues[0]?.message ?? "Comentário inválido.");
+  }
+
+  const escopoCtx = await loadEscopoFromTokenForMutation(token);
+  if (!escopoCtx) {
+    return actionError("Link invalido ou revogado.");
+  }
+
+  const achadoCtx = await loadAchadoInEscopo(escopoCtx.escopoId, achadoId);
+  if (!achadoCtx) {
+    return actionError("Achado nao pertence a este escopo.");
+  }
+
+  await db.insert(achadoComentarios).values({
+    achadoId,
+    escopoId: escopoCtx.escopoId,
+    autor: "profissional",
+    texto: parsed.data.texto,
+  });
+
+  revalidatePath(`/v/${token}/profissional`);
+  revalidatePath(
+    escopoPath({
+      escopoId: escopoCtx.escopoId,
+      empreendimentoId: escopoCtx.empreendimentoId,
+    }),
+  );
+  revalidatePath(unidadePath(achadoCtx.empreendimentoId, achadoCtx.unidadeId));
+  invalidateAchados();
 }
