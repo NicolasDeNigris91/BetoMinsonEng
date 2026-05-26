@@ -9,6 +9,18 @@ export type PdfEscopoFoto = {
   legenda: string | null;
 };
 
+export type PdfEscopoCompare = {
+  antes: PdfEscopoFoto | null;
+  // Tipo do evento que originou a foto "antes". Vira sub-rotulo no PDF
+  // (ex.: "ANTES · CRIADO" vs "ANTES · PERSISTE") pra dar contexto de
+  // qual estado do problema esta sendo mostrado.
+  antesTipo: "criado" | "persiste" | "nota" | null;
+  antesDataBR: string | null;
+  depois: PdfEscopoFoto | null;
+  depoisDataBR: string | null;
+  diasParaResolver: number | null;
+};
+
 export type PdfEscopoAchado = {
   achadoId: string;
   categoria: Categoria;
@@ -16,7 +28,12 @@ export type PdfEscopoAchado = {
   descricao: string;
   prazoEmBR: string | null;
   status: "aberto" | "resolvido";
+  // Achado aberto: lista (1-3) renderizada no grid. Achado resolvido sem
+  // nenhuma foto nos dois lados tambem cai pra lista vazia aqui.
   fotos: PdfEscopoFoto[];
+  // Achado resolvido com ao menos uma foto em algum dos lados: usa o
+  // compare-grid (antes -> depois). null pra achado aberto.
+  compare: PdfEscopoCompare | null;
 };
 
 export type PdfEscopoUnidade = {
@@ -59,28 +76,69 @@ const BADGE: Record<Categoria, { border: string; text: string }> = {
   SIS: { border: "#cbd5e1", text: "#0f172a" },
 };
 
+function renderFotosGrid(fotosList: PdfEscopoFoto[]): string {
+  const n = fotosList.length;
+  if (n === 0) return "";
+  const fotosClass =
+    n === 1
+      ? "fotos-grid qtd-1"
+      : n === 2
+        ? "fotos-grid qtd-2"
+        : "fotos-grid qtd-3";
+  return `<div class="${fotosClass}">${fotosList
+    .map(
+      (f) => `<figure class="foto">
+        <img src="${escapeAttr(f.dataUri)}" alt="${escapeAttr(f.legenda ?? "Foto do achado")}" />
+        ${f.legenda ? `<figcaption>${escapeHtml(f.legenda)}</figcaption>` : ""}
+      </figure>`,
+    )
+    .join("")}</div>`;
+}
+
+function renderCompare(c: PdfEscopoCompare): string {
+  const antesPhotoHtml = c.antes
+    ? `<img src="${escapeAttr(c.antes.dataUri)}" alt="Foto antes da resolucao" class="photo" />`
+    : `<div class="photo-empty antes">sem foto</div>`;
+  const depoisPhotoHtml = c.depois
+    ? `<img src="${escapeAttr(c.depois.dataUri)}" alt="Foto depois da resolucao" class="photo" />`
+    : `<div class="photo-empty depois">sem foto</div>`;
+
+  const tipoAntesLabel =
+    c.antesTipo === "persiste"
+      ? "PERSISTE"
+      : c.antesTipo === "nota"
+        ? "NOTA"
+        : "CRIADO";
+
+  const diasTxt =
+    c.diasParaResolver != null
+      ? c.diasParaResolver === 1
+        ? " · 1 dia"
+        : ` · ${c.diasParaResolver} dias`
+      : "";
+
+  return `<div class="compare-grid">
+    <div class="compare-side">
+      ${antesPhotoHtml}
+      <span class="caption antes">ANTES · ${tipoAntesLabel}</span>
+      ${c.antesDataBR ? `<span class="date">${escapeHtml(c.antesDataBR)}</span>` : ""}
+    </div>
+    <div class="compare-arrow">→</div>
+    <div class="compare-side">
+      ${depoisPhotoHtml}
+      <span class="caption depois">DEPOIS · RESOLVIDO${diasTxt}</span>
+      ${c.depoisDataBR ? `<span class="date">${escapeHtml(c.depoisDataBR)}</span>` : ""}
+    </div>
+  </div>`;
+}
+
 function renderAchado(achado: PdfEscopoAchado, numero: number): string {
   const stripe = STRIPE_COLOR[achado.categoria];
   const badge = BADGE[achado.categoria];
-  const nFotos = achado.fotos.length;
 
-  const fotosClass =
-    nFotos === 1
-      ? "fotos-grid qtd-1"
-      : nFotos === 2
-        ? "fotos-grid qtd-2"
-        : "fotos-grid qtd-3";
-
-  const fotosHtml = nFotos
-    ? `<div class="${fotosClass}">${achado.fotos
-        .map(
-          (f) => `<figure class="foto">
-            <img src="${escapeAttr(f.dataUri)}" alt="${escapeAttr(f.legenda ?? "Foto do achado")}" />
-            ${f.legenda ? `<figcaption>${escapeHtml(f.legenda)}</figcaption>` : ""}
-          </figure>`,
-        )
-        .join("")}</div>`
-    : "";
+  const visualHtml = achado.compare
+    ? renderCompare(achado.compare)
+    : renderFotosGrid(achado.fotos);
 
   const prazoHtml = achado.prazoEmBR
     ? `<span class="prazo">Prazo: ${escapeHtml(achado.prazoEmBR)}</span>`
@@ -102,7 +160,7 @@ function renderAchado(achado: PdfEscopoAchado, numero: number): string {
       ${prazoHtml}
     </div>
     <p class="descricao">${escapeHtml(achado.descricao)}</p>
-    ${fotosHtml}
+    ${visualHtml}
   </li>`;
 }
 
@@ -302,10 +360,12 @@ body {
 
 /* UNIDADES */
 
-.unidade-section {
-  margin-bottom: 20px;
-  page-break-inside: avoid;
-}
+/* Nao usamos page-break-inside: avoid aqui de proposito — quando a
+   unidade tem muitos achados, isso joga a secao inteira pra proxima
+   pagina e deixa pagina 1 quase em branco. Cada .achado individual
+   ja tem seu page-break-inside: avoid, entao o conteudo continua
+   sem quebrar no meio de um card. */
+.unidade-section { margin-bottom: 20px; }
 
 .unidade-header {
   display: flex;
@@ -314,6 +374,7 @@ body {
   padding: 6px 0;
   border-bottom: 1px dashed rgba(15,30,58,0.2);
   margin-bottom: 8px;
+  page-break-after: avoid;
 }
 
 .unidade-nome {
@@ -433,6 +494,68 @@ body {
   color: rgba(15,30,58,0.6);
   margin-top: 2px;
   font-style: italic;
+}
+
+/* COMPARE (antes / depois) — achado resolvido */
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 18px 1fr;
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 8px;
+}
+.compare-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.compare-side .photo {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid rgba(15,30,58,0.2);
+  display: block;
+}
+.compare-side .photo-empty {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 3px;
+  border: 1px dashed rgba(15,30,58,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8pt;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(15,30,58,0.5);
+}
+.compare-side .photo-empty.antes { background: #fef2f2; }
+.compare-side .photo-empty.depois { background: #ecfdf5; }
+.compare-side .caption {
+  font-size: 7.5pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.compare-side .caption.antes { color: #b45309; }
+.compare-side .caption.depois { color: #047857; }
+.compare-side .date {
+  font-size: 7.5pt;
+  color: rgba(15,30,58,0.55);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.compare-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #047857;
+  font-size: 18pt;
+  font-weight: 800;
+  padding-top: 14%;
 }
 
 /* FOOTER */

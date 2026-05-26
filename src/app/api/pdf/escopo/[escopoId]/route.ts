@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { eq, asc, desc, inArray } from "drizzle-orm";
+import { differenceInCalendarDays } from "date-fns";
 import { db } from "@/db";
 import {
   achadoEventos,
@@ -20,6 +21,7 @@ import { renderHtmlToPdf } from "@/lib/pdf";
 import {
   renderEscopoPdfHtml,
   type PdfEscopoAchado,
+  type PdfEscopoCompare,
   type PdfEscopoData,
   type PdfEscopoFoto,
   type PdfEscopoUnidade,
@@ -78,6 +80,7 @@ export async function GET(
   const itens = await db
     .select({
       achadoId: achados.id,
+      achadoCreatedAt: achados.createdAt,
       categoria: achados.categoria,
       local: achados.local,
       descricao: achados.descricao,
@@ -94,14 +97,25 @@ export async function GET(
     .where(eq(escopoAchados.escopoId, escopoId))
     .orderBy(asc(unidades.ordem), asc(unidades.nome), asc(escopoAchados.ordem));
 
-  // Pra cada achado, queremos as fotos do evento mais recente NAO-resolvido
-  // (criado/persiste/nota). Resolvido pode aparecer mas sem fotos quando o
-  // evento que mostrava o problema ja foi substituido. Em ultimo caso, pega
-  // qualquer evento que tenha fotos.
+  // Pra cada achado pegamos DOIS eventos:
+  //  - ANTES: o mais recente não-resolvido (criado/persiste/nota). Sempre
+  //    existe (todo achado nasce com um "criado"), mas pode nao ter foto.
+  //  - DEPOIS: o mais recente "resolvido". So existe quando o achado foi
+  //    marcado como resolvido em alguma vistoria.
+  // Achado aberto renderiza grid normal das fotos do ANTES.
+  // Achado resolvido renderiza compare antes -> depois.
   const achadoIds = itens.map((it) => it.achadoId);
-  const fotosPorAchado = new Map<string, PdfEscopoFoto[]>();
+  type EventoAntes = {
+    eventoId: string;
+    tipo: "criado" | "persiste" | "nota";
+    createdAt: Date;
+  };
+  type EventoDepois = { eventoId: string; createdAt: Date };
+  const antesPorAchado = new Map<string, EventoAntes>();
+  const depoisPorAchado = new Map<string, EventoDepois>();
+  const fotosPorEvento = new Map<string, PdfEscopoFoto[]>();
+
   if (achadoIds.length > 0) {
-    // Buscar todos os eventos dos achados, com fotos.
     const eventos = await db
       .select({
         achadoId: achadoEventos.achadoId,
@@ -113,25 +127,34 @@ export async function GET(
       .where(inArray(achadoEventos.achadoId, achadoIds))
       .orderBy(desc(achadoEventos.createdAt));
 
-    // Escolher o evento mais recente que NAO seja "resolvido" pra mostrar
-    // o estado problema. Se so tiver resolvido, pega ele mesmo.
-    const eventoEscolhidoPorAchado = new Map<string, string>();
+    // Eventos ja vem ordenados desc por data, entao o primeiro de cada
+    // categoria encontrado eh o mais recente.
     for (const ev of eventos) {
-      if (eventoEscolhidoPorAchado.has(ev.achadoId)) continue;
-      if (ev.tipo !== "resolvido") {
-        eventoEscolhidoPorAchado.set(ev.achadoId, ev.eventoId);
+      if (ev.tipo === "resolvido") {
+        if (!depoisPorAchado.has(ev.achadoId)) {
+          depoisPorAchado.set(ev.achadoId, {
+            eventoId: ev.eventoId,
+            createdAt: ev.createdAt,
+          });
+        }
+      } else {
+        if (!antesPorAchado.has(ev.achadoId)) {
+          antesPorAchado.set(ev.achadoId, {
+            eventoId: ev.eventoId,
+            tipo: ev.tipo,
+            createdAt: ev.createdAt,
+          });
+        }
       }
     }
-    // Pra achados ainda sem evento escolhido (so tem "resolvido"), pega o
-    // primeiro da lista (que ja vem ordenada desc por data).
-    for (const ev of eventos) {
-      if (eventoEscolhidoPorAchado.has(ev.achadoId)) continue;
-      eventoEscolhidoPorAchado.set(ev.achadoId, ev.eventoId);
-    }
 
-    const eventoIdsEscolhidos = Array.from(eventoEscolhidoPorAchado.values());
+    const eventoIdsTodos = [
+      ...Array.from(antesPorAchado.values()).map((e) => e.eventoId),
+      ...Array.from(depoisPorAchado.values()).map((e) => e.eventoId),
+    ];
+
     const fotosRows =
-      eventoIdsEscolhidos.length > 0
+      eventoIdsTodos.length > 0
         ? await db
             .select({
               eventoId: fotos.achadoEventoId,
@@ -140,31 +163,52 @@ export async function GET(
               ordem: fotos.ordem,
             })
             .from(fotos)
-            .where(inArray(fotos.achadoEventoId, eventoIdsEscolhidos))
+            .where(inArray(fotos.achadoEventoId, eventoIdsTodos))
             .orderBy(asc(fotos.ordem))
         : [];
 
-    // Mapear eventoId → achadoId pra agrupar fotos pelo achado.
-    const eventoToAchado = new Map<string, string>();
-    for (const [achadoId, eventoId] of eventoEscolhidoPorAchado.entries()) {
-      eventoToAchado.set(eventoId, achadoId);
-    }
-
-    // Converter cada thumb em data URI (igual o PDF de vistoria faz).
+    // Converter cada thumb em data URI e agrupar por evento.
     for (const f of fotosRows) {
-      const achadoId = eventoToAchado.get(f.eventoId);
-      if (!achadoId) continue;
       const dataUri = await fileToDataUri(f.thumbPath);
       if (!dataUri) continue;
-      const arr = fotosPorAchado.get(achadoId) ?? [];
+      const arr = fotosPorEvento.get(f.eventoId) ?? [];
       arr.push({ dataUri, legenda: f.legenda });
-      fotosPorAchado.set(achadoId, arr);
+      fotosPorEvento.set(f.eventoId, arr);
     }
   }
 
   // Agrupar itens por unidade pra o template.
   const gruposMap = new Map<string, PdfEscopoUnidade>();
   for (const it of itens) {
+    const antes = antesPorAchado.get(it.achadoId);
+    const depois = depoisPorAchado.get(it.achadoId);
+    const fotosAntes = antes ? fotosPorEvento.get(antes.eventoId) ?? [] : [];
+    const fotosDepois = depois ? fotosPorEvento.get(depois.eventoId) ?? [] : [];
+
+    let compare: PdfEscopoCompare | null = null;
+    let fotosGrid: PdfEscopoFoto[] = [];
+
+    if (
+      it.status === "resolvido" &&
+      (fotosAntes.length > 0 || fotosDepois.length > 0)
+    ) {
+      const dias = depois
+        ? differenceInCalendarDays(depois.createdAt, it.achadoCreatedAt)
+        : null;
+      compare = {
+        antes: fotosAntes[0] ?? null,
+        antesTipo: antes?.tipo ?? null,
+        antesDataBR: antes ? formatDateBR(antes.createdAt) : null,
+        depois: fotosDepois[0] ?? null,
+        depoisDataBR: depois ? formatDateBR(depois.createdAt) : null,
+        diasParaResolver: dias != null ? Math.max(0, dias) : null,
+      };
+    } else {
+      // Aberto: grid de fotos do ANTES (mesma UX de antes).
+      // Resolvido sem nenhuma foto: cai aqui tambem e nao renderiza nada.
+      fotosGrid = fotosAntes;
+    }
+
     const achado: PdfEscopoAchado = {
       achadoId: it.achadoId,
       categoria: it.categoria,
@@ -172,7 +216,8 @@ export async function GET(
       descricao: it.descricao,
       prazoEmBR: it.prazoEm ? formatDateBR(it.prazoEm) : null,
       status: it.status,
-      fotos: fotosPorAchado.get(it.achadoId) ?? [],
+      fotos: fotosGrid,
+      compare,
     };
     const g = gruposMap.get(it.unidadeId);
     if (g) g.achados.push(achado);
