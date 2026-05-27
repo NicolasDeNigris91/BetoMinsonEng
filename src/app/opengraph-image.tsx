@@ -18,7 +18,7 @@ export default async function Image() {
         style={{
           width: "100%",
           height: "100%",
-          background: "#ffffff",
+          background: "#fbfcfe",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
