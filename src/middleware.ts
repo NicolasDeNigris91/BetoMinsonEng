@@ -25,6 +25,7 @@ const PUBLIC_PATHS = [
   "/api/health",
   "/api/upload",
   "/api/pdf/",
+  "/opengraph-image",
 ];
 
 function readSessionSecret(): string {
