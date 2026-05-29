@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq, desc, and, count, asc, sql, inArray } from "drizzle-orm";
+import { eq, desc, and, count, asc, sql } from "drizzle-orm";
 import {
   CheckCircle2,
   ClipboardList,
   FileText,
-  HardHat,
   History,
   Plus,
   StickyNote,
@@ -23,19 +22,12 @@ import {
   vistorias,
   achados,
   achadoEventos,
-  escopos,
   categoriaEnum,
   CATEGORIA_LABELS,
   type AchadoStatus,
   type Categoria,
-  type EventoTipo,
 } from "@/db/schema";
-import {
-  evaluatePrazo,
-  formatDate,
-  formatDateTime,
-  type DateFormat,
-} from "@/lib/format";
+import { evaluatePrazo, formatDate } from "@/lib/format";
 import { getDateFormat } from "@/lib/date-format-server";
 import { parseUuidOrNotFound } from "@/lib/route-params";
 import {
@@ -55,12 +47,22 @@ import {
 export const dynamic = "force-dynamic";
 
 type EventoView = {
-  id: string;
   achadoId: string;
-  tipo: EventoTipo;
-  createdAt: Date;
   categoria: Categoria;
-  escopoOrigemId: string | null;
+};
+
+type AchadoLite = {
+  id: string;
+  categoria: Categoria;
+  status: AchadoStatus;
+  prazoEm: string | null;
+};
+
+type TileStats = {
+  total: number;
+  abertos: number;
+  resolvidos: number;
+  atrasados: number;
 };
 
 const VALID_STATUS: StatusFilter[] = ["todos", "aberto", "atrasado", "resolvido"];
@@ -98,109 +100,55 @@ function achadoMatchesFilter(
   return prazo?.kind === "atrasado";
 }
 
-type LinhaAudit = {
-  achadoId: string;
-  categoria: Categoria;
-  left: EventoView | null;
-  right: EventoView | null;
-};
-
-const TIPO_LABEL: Record<EventoTipo, string> = {
-  criado: "achado criado",
-  resolvido: "resolvido",
-  persiste: "persiste",
-  nota: "anotação",
-};
-
-const TIPO_COLOR: Record<EventoTipo, string> = {
-  criado: "text-amber-700 dark:text-amber-300",
-  resolvido: "text-emerald-700 dark:text-emerald-300",
-  persiste: "text-amber-700 dark:text-amber-300",
-  nota: "text-muted-foreground",
-};
+// Ordem fixa do enum pra tiles ficarem consistentes entre vistorias.
+const ORDEM_CATEGORIA: Categoria[] = [
+  "ELE",
+  "HID",
+  "HVAC",
+  "PISCINA",
+  "ASP",
+  "SIS",
+];
 
 /**
- * Agrupa eventos de uma vistoria por achadoId: criado/persiste/nota a
- * esquerda, resolvido a direita. Cada achado ocupa uma linha so. Preserva
- * ordem cronologica (Map preserva ordem de insercao).
+ * Agrupa achados por (vistoria × categoria) e conta status atual. Achado
+ * pode ter virios eventos na mesma vistoria — dedupe via Set garante
+ * uma contagem por achado, nao por evento. Eventos chegam ja filtrados
+ * pelo filtro ativo da pagina (status/categoria), entao a contagem aqui
+ * reflete o filtro.
  */
-function pairEventosPorAchado(eventos: EventoView[]): LinhaAudit[] {
-  const map = new Map<string, LinhaAudit>();
-  for (const ev of eventos) {
-    const entry = map.get(ev.achadoId) ?? {
-      achadoId: ev.achadoId,
-      categoria: ev.categoria,
-      left: null,
-      right: null,
-    };
-    if (ev.tipo === "resolvido") {
-      entry.right = ev;
-    } else if (!entry.left) {
-      entry.left = ev;
+export function buildTilesByVistoria(
+  eventosByVistoria: Map<string, EventoView[]>,
+  achadoById: Map<string, AchadoLite>,
+): Map<string, Map<Categoria, TileStats>> {
+  const result = new Map<string, Map<Categoria, TileStats>>();
+  for (const [vid, eventos] of eventosByVistoria) {
+    const achadosPorCat = new Map<Categoria, Set<string>>();
+    for (const ev of eventos) {
+      const set = achadosPorCat.get(ev.categoria) ?? new Set<string>();
+      set.add(ev.achadoId);
+      achadosPorCat.set(ev.categoria, set);
     }
-    map.set(ev.achadoId, entry);
+    const tilesPorCat = new Map<Categoria, TileStats>();
+    for (const [cat, achadoIds] of achadosPorCat) {
+      let abertos = 0;
+      let resolvidos = 0;
+      let atrasados = 0;
+      for (const aId of achadoIds) {
+        const a = achadoById.get(aId);
+        if (!a) continue;
+        if (a.status === "resolvido") {
+          resolvidos++;
+        } else if (a.status === "aberto") {
+          abertos++;
+          if (evaluatePrazo(a.prazoEm)?.kind === "atrasado") atrasados++;
+        }
+      }
+      tilesPorCat.set(cat, { total: achadoIds.size, abertos, resolvidos, atrasados });
+    }
+    result.set(vid, tilesPorCat);
   }
-  return Array.from(map.values());
-}
-
-function EventoLine({
-  ev,
-  categoria,
-  autorVistoria,
-  nomeEscopoPorId,
-  dateFmt,
-}: {
-  ev: EventoView | null;
-  categoria: Categoria;
-  autorVistoria: string | null;
-  nomeEscopoPorId: Map<string, string>;
-  dateFmt: DateFormat;
-}) {
-  if (!ev) {
-    return (
-      <span className="hidden font-mono text-[11px] text-muted-foreground/40 md:inline">
-        —
-      </span>
-    );
-  }
-  const nomeEscopo = ev.escopoOrigemId
-    ? nomeEscopoPorId.get(ev.escopoOrigemId)
-    : null;
-  return (
-    <span className="flex flex-wrap items-center gap-x-2 font-mono text-[11px]">
-      <span
-        aria-hidden
-        className={cn(
-          "inline-block size-1.5 rounded-full",
-          CATEGORIA_DOT[categoria],
-        )}
-      />
-      <span className="text-foreground/80">
-        {CATEGORIA_LABELS[categoria].toLowerCase()}
-      </span>
-      <span className={cn("font-semibold", TIPO_COLOR[ev.tipo])}>
-        {TIPO_LABEL[ev.tipo]}
-      </span>
-      <span className="text-muted-foreground/60">·</span>
-      <span className="tabular-nums text-muted-foreground">
-        {formatDateTime(ev.createdAt, dateFmt)}
-      </span>
-      {nomeEscopo ? (
-        <>
-          <span className="text-muted-foreground/60">·</span>
-          <span className="inline-flex items-center gap-1 text-muted-foreground">
-            <HardHat className="size-3" aria-hidden />
-            via escopo: {nomeEscopo}
-          </span>
-        </>
-      ) : autorVistoria ? (
-        <>
-          <span className="text-muted-foreground/60">·</span>
-          <span className="text-muted-foreground">{autorVistoria}</span>
-        </>
-      ) : null}
-    </span>
-  );
+  return result;
 }
 
 export default async function UnidadeDetailPage({
@@ -224,7 +172,6 @@ export default async function UnidadeDetailPage({
     [emp],
     vistoriasList,
     [achadosCounts],
-    chipRows,
     achadosDaUnidade,
     eventosRows,
     achadosAbertosRows,
@@ -252,24 +199,6 @@ export default async function UnidadeDetailPage({
       })
       .from(achados)
       .where(eq(achados.unidadeId, uid)),
-    // Achados distintos por (vistoria, categoria) que tem evento nao-resolvido
-    // naquela vistoria. Alimenta os chips no card de cada vistoria.
-    db
-      .select({
-        vistoriaId: achadoEventos.vistoriaId,
-        categoria: achados.categoria,
-        n: sql<number>`count(distinct ${achados.id})::int`,
-      })
-      .from(achadoEventos)
-      .innerJoin(achados, eq(achados.id, achadoEventos.achadoId))
-      .innerJoin(vistorias, eq(vistorias.id, achadoEventos.vistoriaId))
-      .where(
-        and(
-          eq(vistorias.unidadeId, uid),
-          sql`${achadoEventos.tipo} <> 'resolvido'`,
-        ),
-      )
-      .groupBy(achadoEventos.vistoriaId, achados.categoria),
     // Todos os achados da unidade — usado pra: contagem por categoria (chips),
     // mapa de status/prazo (filtro), e categorias presentes (quais chips mostrar).
     db
@@ -281,17 +210,14 @@ export default async function UnidadeDetailPage({
       })
       .from(achados)
       .where(eq(achados.unidadeId, uid)),
-    // Eventos de todas as vistorias da unidade — alimenta o audit log
-    // inline no card e tambem o estado "ja marcado" no dialog de pendencias.
+    // Eventos por vistoria — alimentam as tiles por matéria no card.
+    // Sem id/tipo/createdAt: o card mostra contagens, nao o log linha
+    // a linha (esse vive em /vistorias/[vid]).
     db
       .select({
-        id: achadoEventos.id,
         vistoriaId: achadoEventos.vistoriaId,
         achadoId: achadoEventos.achadoId,
-        tipo: achadoEventos.tipo,
-        createdAt: achadoEventos.createdAt,
         categoria: achados.categoria,
-        escopoOrigemId: achadoEventos.escopoOrigemId,
       })
       .from(achadoEventos)
       .innerJoin(achados, eq(achados.id, achadoEventos.achadoId))
@@ -313,25 +239,6 @@ export default async function UnidadeDetailPage({
   ]);
 
   if (!unidade || !emp) notFound();
-
-  // Nomes dos escopos que registraram eventos nesta unidade — usados
-  // como autor da linha do evento ("via escopo: X") em vez do
-  // vistoriadorNome da vistoria, sempre que escopoOrigemId estiver setado.
-  const escopoIdsParaCarregar = Array.from(
-    new Set(
-      eventosRows
-        .map((e) => e.escopoOrigemId)
-        .filter((id): id is string => Boolean(id)),
-    ),
-  );
-  const escoposRows =
-    escopoIdsParaCarregar.length > 0
-      ? await db
-          .select({ id: escopos.id, nome: escopos.nome })
-          .from(escopos)
-          .where(inArray(escopos.id, escopoIdsParaCarregar))
-      : [];
-  const nomeEscopoPorId = new Map(escoposRows.map((e) => [e.id, e.nome]));
 
   // Mapa achadoId -> dados — base do filtro aplicado em event rows.
   const achadoById = new Map(achadosDaUnidade.map((a) => [a.id, a]));
@@ -357,19 +264,8 @@ export default async function UnidadeDetailPage({
   const hasFilter =
     selectedCategorias.length > 0 || selectedStatus !== "todos";
 
-  // (vistoriaId -> Map<categoria, count>) — lookup O(1) na hora de renderizar.
-  const chipsByVistoria = new Map<string, Map<Categoria, number>>();
-  for (const row of chipRows) {
-    let inner = chipsByVistoria.get(row.vistoriaId);
-    if (!inner) {
-      inner = new Map();
-      chipsByVistoria.set(row.vistoriaId, inner);
-    }
-    inner.set(row.categoria, Number(row.n));
-  }
-
-  // (vistoriaId -> EventoView[]) na ordem cronologica, ja filtrada pelo
-  // estado do achado correspondente.
+  // (vistoriaId -> EventoView[]) — eventos filtrados pelo estado/categoria
+  // do achado correspondente. Alimenta o calculo das tiles por matéria.
   const eventosByVistoria = new Map<string, EventoView[]>();
   for (const row of eventosRows) {
     if (!achadosFiltradosIds.has(row.achadoId)) continue;
@@ -378,15 +274,8 @@ export default async function UnidadeDetailPage({
     eventosByVistoria.set(row.vistoriaId, arr);
   }
 
-  // Ordem fixa do enum pra chips ficarem consistentes entre vistorias.
-  const ORDEM_CATEGORIA: Categoria[] = [
-    "ELE",
-    "HID",
-    "HVAC",
-    "PISCINA",
-    "ASP",
-    "SIS",
-  ];
+  const tilesByVistoria = buildTilesByVistoria(eventosByVistoria, achadoById);
+
   const categoriasPresentes: Categoria[] = ORDEM_CATEGORIA.filter(
     (c) => totaisPorCategoria[c] > 0,
   );
@@ -565,96 +454,127 @@ export default async function UnidadeDetailPage({
         ) : (
           <div className="space-y-2">
             {vistoriasVisiveis.map((v) => {
-              const counts = chipsByVistoria.get(v.id);
-              const eventos = eventosByVistoria.get(v.id) ?? [];
-              const linhasAudit = pairEventosPorAchado(eventos);
+              const tiles = tilesByVistoria.get(v.id);
+              const tilesOrdenadas = tiles
+                ? ORDEM_CATEGORIA.filter((c) => tiles.has(c)).map(
+                    (c) => [c, tiles.get(c)!] as const,
+                  )
+                : [];
               const href = `/empreendimentos/${id}/unidades/${unidade.id}/vistorias/${v.id}`;
 
               return (
                 <div
                   key={v.id}
-                  className="relative overflow-hidden rounded-lg border bg-card transition-colors hover:bg-accent/40 focus-within:ring-2 focus-within:ring-ring"
+                  className="relative overflow-hidden rounded-lg border bg-card focus-within:ring-2 focus-within:ring-ring"
                 >
                   <div
                     aria-hidden
                     className={`absolute top-0 bottom-0 left-0 z-10 w-[3px] ${VISTORIA_STATUS_STRIPE[v.status]}`}
                   />
 
-                  {/* Link absoluto cobre o card todo, mas fica abaixo dos
-                      botoes (z-0). Conteudo interno tem pointer-events-none
-                      pra nao bloquear o clique do link. */}
-                  <Link
-                    href={href}
-                    className="absolute inset-0 z-0 rounded-lg focus:outline-none"
-                    aria-label={`Abrir vistoria de ${formatDate(v.data, dateFmt)}`}
-                  />
-
-                  <div className="pointer-events-none relative z-[1]">
-                    <div className="flex items-center justify-between gap-3 px-5 py-4 pr-40">
-                      <div className="space-y-0.5">
-                        <p className="text-base font-semibold text-foreground">
-                          Vistoria de{" "}
-                          <span className="font-tech">
-                            {formatDate(v.data, dateFmt)}
-                          </span>
+                  <div className="flex items-center justify-between gap-3 px-5 py-4 pr-40">
+                    <div className="space-y-0.5">
+                      <p className="text-base font-semibold text-foreground">
+                        Vistoria de{" "}
+                        <span className="font-tech">
+                          {formatDate(v.data, dateFmt)}
+                        </span>
+                      </p>
+                      {v.vistoriadorNome ? (
+                        <p className="text-xs text-muted-foreground">
+                          {v.vistoriadorNome}
                         </p>
-                        {v.vistoriadorNome ? (
-                          <p className="text-xs text-muted-foreground">
-                            {v.vistoriadorNome}
-                          </p>
-                        ) : null}
-                      </div>
+                      ) : null}
                     </div>
+                  </div>
 
-                    {categoriasPresentes.length > 0 ? (
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-dashed border-border/70 px-5 py-2">
-                        {categoriasPresentes.map((cat) => {
-                          const n = counts?.get(cat) ?? 0;
-                          const label = CATEGORIA_LABELS[cat].toLowerCase();
-                          return (
-                            <span
-                              key={cat}
-                              className={`font-mono text-[10px] tracking-[0.06em] ${
-                                n > 0
-                                  ? "text-amber-700 dark:text-amber-300"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              {label}{" "}
-                              <span className="tabular-nums">
-                                {n > 0 ? n : "ok"}
-                              </span>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-
-                    {linhasAudit.length > 0 ? (
-                      <ul className="divide-y divide-dashed divide-border/70 border-t border-dashed border-border/70 bg-muted/30">
-                        {linhasAudit.map((row) => (
-                          <li
-                            key={row.achadoId}
-                            className="grid grid-cols-1 gap-x-6 gap-y-1 px-5 py-2 md:grid-cols-2"
+                  {tilesOrdenadas.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-2 border-t border-dashed border-border/70 p-3 sm:grid-cols-2 sm:p-4 lg:grid-cols-3 xl:grid-cols-4">
+                      {tilesOrdenadas.map(([cat, stats]) => {
+                        const label = CATEGORIA_LABELS[cat].toLowerCase();
+                        const semAbertos = stats.abertos === 0;
+                        const pct =
+                          stats.total > 0
+                            ? Math.round((stats.resolvidos / stats.total) * 100)
+                            : 0;
+                        return (
+                          <Link
+                            key={cat}
+                            href={href}
+                            className={cn(
+                              "group relative block rounded-md border border-border px-3.5 py-3 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                              semAbertos
+                                ? "border-emerald-300/70 bg-emerald-50/50 hover:bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/30"
+                                : "bg-muted/40 hover:bg-muted",
+                            )}
+                            aria-label={`${label}: ${stats.abertos} abertos, ${stats.resolvidos} resolvidos`}
                           >
-                            <EventoLine
-                              ev={row.left}
-                              categoria={row.categoria}
-                              autorVistoria={v.vistoriadorNome}
-                              nomeEscopoPorId={nomeEscopoPorId}
-                              dateFmt={dateFmt}
-                            />
-                            <EventoLine
-                              ev={row.right}
-                              categoria={row.categoria}
-                              autorVistoria={v.vistoriadorNome}
-                              nomeEscopoPorId={nomeEscopoPorId}
-                              dateFmt={dateFmt}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    ) : null}
+                            <div className="mb-2 flex items-center gap-2">
+                              <span
+                                aria-hidden
+                                className={cn(
+                                  "inline-block size-2 rounded-full",
+                                  CATEGORIA_DOT[cat],
+                                )}
+                              />
+                              <span className="font-mono text-[10px] font-semibold tracking-[0.14em] uppercase text-foreground">
+                                {label}
+                              </span>
+                              {stats.atrasados > 0 ? (
+                                <span className="ml-auto font-mono text-[9px] font-bold tracking-[0.08em] uppercase text-rose-700 dark:text-rose-300">
+                                  {stats.atrasados} atrasado
+                                  {stats.atrasados === 1 ? "" : "s"}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                              <span
+                                className={cn(
+                                  "font-mono text-2xl font-bold tabular-nums leading-none",
+                                  semAbertos
+                                    ? "text-emerald-700 dark:text-emerald-300"
+                                    : "text-amber-700 dark:text-amber-300",
+                                )}
+                              >
+                                {semAbertos ? "ok" : stats.abertos}
+                              </span>
+                              {!semAbertos ? (
+                                <span className="font-mono text-[10px] tracking-[0.06em] uppercase text-muted-foreground">
+                                  {stats.abertos === 1 ? "aberto" : "abertos"}
+                                </span>
+                              ) : null}
+                              {stats.resolvidos > 0 ? (
+                                <span className="font-mono text-[10px] tabular-nums text-emerald-700 dark:text-emerald-300">
+                                  · {stats.resolvidos} resolvido
+                                  {stats.resolvidos === 1 ? "" : "s"}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="mt-2 h-[3px] overflow-hidden rounded-full bg-foreground/10">
+                              <span
+                                className="block h-full bg-emerald-500 dark:bg-emerald-400"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  <div className="flex items-center justify-between border-t border-dashed border-border/70 bg-muted/30 px-5 py-2">
+                    <span className="font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
+                      {tilesOrdenadas.length > 0
+                        ? "Clique numa matéria pra abrir"
+                        : "Vistoria sem achados"}
+                    </span>
+                    <Link
+                      href={href}
+                      className="font-mono text-[10px] font-semibold tracking-[0.08em] uppercase text-foreground transition hover:underline"
+                      aria-label={`Abrir vistoria de ${formatDate(v.data, dateFmt)}`}
+                    >
+                      Abrir vistoria →
+                    </Link>
                   </div>
 
                   <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
