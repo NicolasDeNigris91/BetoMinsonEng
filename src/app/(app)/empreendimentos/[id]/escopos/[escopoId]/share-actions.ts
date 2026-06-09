@@ -8,6 +8,7 @@ import { escopoShareTokens } from "@/db/schema";
 import { requireMutation } from "@/lib/require-mutation";
 import { env } from "@/lib/env";
 import { escopoContext, escopoPath } from "@/lib/escopo-context";
+import { invalidateEscopos } from "@/lib/cache-tags";
 
 /**
  * Gera um link de profissional pro escopo. Nao expira por tempo — fica
@@ -29,6 +30,7 @@ export async function createEscopoShareTokenAction(
     token,
   });
 
+  invalidateEscopos();
   revalidatePath(escopoPath(ctx));
 
   return {
@@ -60,5 +62,6 @@ export async function revokeEscopoShareTokenAction(
       ),
     );
 
+  invalidateEscopos();
   revalidatePath(escopoPath(ctx));
 }
