@@ -20,9 +20,13 @@ import type { NextConfig } from "next";
 // img-src 'self' data: blob:
 //   data: → QR code SVG-em-data-uri, fotos previews em base64 (PDF)
 //   blob: → object-url de fotos em edição local
+// 'unsafe-eval' so em dev: webpack dev usa eval-source-map pra HMR,
+// que carrega o bundle inteiro via eval(). Em prod o bundle e compilado
+// e nao usa eval — CSP continua estrito.
+const isDev = process.env.NODE_ENV === "development";
 const cspParts = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
