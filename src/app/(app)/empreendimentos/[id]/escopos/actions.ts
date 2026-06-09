@@ -21,6 +21,11 @@ const novoEscopoSchema = z.object({
     .min(1, "Nome é obrigatório")
     .max(200, "Nome muito longo"),
   descricao: z.string().trim().max(1000).optional().or(z.literal("")),
+  prazoEm: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida")
+    .optional()
+    .or(z.literal("")),
 });
 
 export type NovoEscopoState = {
@@ -38,6 +43,7 @@ export async function createEscopoAction(
   const parsed = novoEscopoSchema.safeParse({
     nome: formData.get("nome"),
     descricao: formData.get("descricao"),
+    prazoEm: formData.get("prazoEm"),
   });
 
   if (!parsed.success) {
@@ -55,6 +61,7 @@ export async function createEscopoAction(
       empreendimentoId,
       nome: parsed.data.nome,
       descricao: parsed.data.descricao || null,
+      prazoEm: parsed.data.prazoEm || null,
     })
     .returning({ id: escopos.id });
 
@@ -77,6 +84,7 @@ export async function updateEscopoAction(
   const parsed = novoEscopoSchema.safeParse({
     nome: formData.get("nome"),
     descricao: formData.get("descricao"),
+    prazoEm: formData.get("prazoEm"),
   });
 
   if (!parsed.success) {
@@ -93,6 +101,7 @@ export async function updateEscopoAction(
     .set({
       nome: parsed.data.nome,
       descricao: parsed.data.descricao || null,
+      prazoEm: parsed.data.prazoEm || null,
       updatedAt: new Date(),
     })
     .where(eq(escopos.id, escopoId));

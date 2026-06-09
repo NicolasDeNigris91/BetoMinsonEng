@@ -119,12 +119,37 @@ export function EscopoFormDialog({
               name="descricao"
               rows={3}
               defaultValue={escopo?.descricao ?? ""}
-              placeholder="Anotação livre — prazo, contato do profissional, etc."
+              placeholder="Anotação livre — contato do profissional, etc."
               disabled={pending}
             />
             {state.fieldErrors?.descricao ? (
               <p className="text-sm text-destructive">
                 {state.fieldErrors.descricao}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <Label
+              htmlFor="prazoEm"
+              className="font-mono text-[10px] tracking-[0.08em] uppercase text-muted-foreground"
+            >
+              Prazo do profissional (opcional)
+            </Label>
+            <Input
+              id="prazoEm"
+              name="prazoEm"
+              type="date"
+              defaultValue={escopo?.prazoEm ?? ""}
+              disabled={pending}
+            />
+            <p className="text-xs text-muted-foreground">
+              Data combinada de entrega. Vai aparecer pro profissional no link
+              dele e na home.
+            </p>
+            {state.fieldErrors?.prazoEm ? (
+              <p className="text-sm text-destructive">
+                {state.fieldErrors.prazoEm}
               </p>
             ) : null}
           </div>

@@ -101,6 +101,8 @@ export type OrdemEmAndamento = {
   escopoNome: string;
   empreendimentoId: string;
   empreendimentoNome: string;
+  /** Prazo combinado com o profissional. Independente dos prazos dos achados. */
+  prazoEm: string | null;
   nUnidades: number;
   total: number;
   resolvidos: number;
@@ -683,6 +685,7 @@ async function fetchOrdensEmAndamento(): Promise<OrdemEmAndamento[]> {
     .selectDistinct({
       escopoId: escopos.id,
       escopoNome: escopos.nome,
+      prazoEm: escopos.prazoEm,
       empreendimentoId: empreendimentos.id,
       empreendimentoNome: empreendimentos.nome,
     })
@@ -778,6 +781,7 @@ async function fetchOrdensEmAndamento(): Promise<OrdemEmAndamento[]> {
       escopoNome: e.escopoNome,
       empreendimentoId: e.empreendimentoId,
       empreendimentoNome: e.empreendimentoNome,
+      prazoEm: e.prazoEm,
       nUnidades: t.nUnidades,
       total: t.total,
       resolvidos: t.resolvidosGlobais,

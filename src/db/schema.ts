@@ -229,6 +229,10 @@ export const escopos = pgTable(
       .references(() => empreendimentos.id, { onDelete: "cascade" }),
     nome: varchar("nome", { length: 200 }).notNull(),
     descricao: text("descricao"),
+    // Prazo combinado com o profissional pra entregar a OS. Independente do
+    // achados.prazoEm (que e prazo interno da engenharia). Aparece pro
+    // profissional no link dele e na home da engenharia.
+    prazoEm: date("prazo_em"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

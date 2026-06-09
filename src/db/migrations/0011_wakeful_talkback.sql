@@ -1,0 +1,1 @@
+ALTER TABLE "escopos" ADD COLUMN "prazo_em" date;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { HardHat } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PrazoBadge } from "@/components/prazo-badge";
 import type { OrdemEmAndamento } from "./dashboard-data";
 
 type Props = {
@@ -69,6 +70,13 @@ function OrdemRow({ ordem }: { ordem: OrdemEmAndamento }) {
         <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
           <HardHat className="size-3.5 text-brand shrink-0" aria-hidden />
           <span className="truncate">{ordem.escopoNome}</span>
+          {ordem.prazoEm ? (
+            <PrazoBadge
+              prazoEm={ordem.prazoEm}
+              resolvido={ordem.status === "concluido"}
+              className="shrink-0"
+            />
+          ) : null}
         </p>
         <p className="mt-0.5 font-mono text-[10px] tracking-[0.04em] text-muted-foreground/70">
           {ordem.empreendimentoNome}

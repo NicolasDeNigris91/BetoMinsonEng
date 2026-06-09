@@ -277,6 +277,15 @@ export default async function EscopoDetailPage({
                 </span>
               </>
             ) : null}
+            {escopo.prazoEm ? (
+              <>
+                {" · "}
+                <PrazoBadge
+                  prazoEm={escopo.prazoEm}
+                  className="align-middle"
+                />
+              </>
+            ) : null}
           </p>
         </div>
         <EscopoActionsBar escopo={escopo} nAchados={nAchados} />

@@ -16,6 +16,7 @@ import {
   type Categoria,
 } from "@/db/schema";
 import { getDateFormat } from "@/lib/date-format-server";
+import { PrazoBadge } from "@/components/prazo-badge";
 import { AchadoCard, type AchadoCardData } from "./achado-card";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +59,7 @@ export default async function EscopoProfissionalPage({
       escopoId: escopos.id,
       escopoNome: escopos.nome,
       escopoDescricao: escopos.descricao,
+      escopoPrazoEm: escopos.prazoEm,
       empreendimentoNome: empreendimentos.nome,
     })
     .from(escopoShareTokens)
@@ -237,6 +239,11 @@ export default async function EscopoProfissionalPage({
             <p className="text-sm text-muted-foreground">
               {share.empreendimentoNome}
             </p>
+            {share.escopoPrazoEm ? (
+              <div className="mt-2">
+                <PrazoBadge prazoEm={share.escopoPrazoEm} />
+              </div>
+            ) : null}
             {share.escopoDescricao ? (
               <p className="mt-2 text-sm whitespace-pre-line text-foreground/80">
                 {share.escopoDescricao}
