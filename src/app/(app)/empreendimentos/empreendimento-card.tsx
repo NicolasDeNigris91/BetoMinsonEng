@@ -17,11 +17,8 @@ export type EmpreendimentoCardView = {
   nAbertos: number;
   nResolvidos: number;
   nAtrasados: number;
-  /** Map categoria -> quantos abertos. Quando 0, render como 'ok'. */
   abertosPorCategoria: Record<Categoria, number>;
-  /** Data ISO da ultima atividade (string ISO timestamp). */
   ultimaAtividadeISO: string | null;
-  /** Unidades pra alimentar o dropdown de "+ Vistoria" no card. */
   unidades: CardUnidade[];
 };
 
@@ -34,7 +31,6 @@ const ORDEM_CATEGORIA: Categoria[] = [
   "SIS",
 ];
 
-// Stale = sem atividade ha mais que isso, ja tinha aberto.
 const INATIVO_DIAS_THRESHOLD = 60;
 
 type StatusKind = "urgente" | "ativo" | "ok" | "inativo" | "vazio";
@@ -47,7 +43,6 @@ type StatusInfo = {
 };
 
 function evaluateStatus(view: EmpreendimentoCardView): StatusInfo {
-  // Sem unidades ainda: novo empreendimento, mostra como vazio.
   if (view.nUnidades === 0) {
     return {
       kind: "vazio",
@@ -58,7 +53,6 @@ function evaluateStatus(view: EmpreendimentoCardView): StatusInfo {
     };
   }
 
-  // Atrasado: sempre o pior estado, ignora atividade.
   if (view.nAtrasados > 0) {
     return {
       kind: "urgente",
@@ -69,7 +63,6 @@ function evaluateStatus(view: EmpreendimentoCardView): StatusInfo {
     };
   }
 
-  // Sem abertos com vistorias: tudo resolvido.
   if (view.nAbertos === 0) {
     if (view.ultimaAtividadeISO) {
       return {
@@ -89,7 +82,6 @@ function evaluateStatus(view: EmpreendimentoCardView): StatusInfo {
     };
   }
 
-  // Tem abertos: checa se a ultima atividade e antiga (inativo).
   if (view.ultimaAtividadeISO) {
     const dias = daysSince(view.ultimaAtividadeISO);
     if (dias > INATIVO_DIAS_THRESHOLD) {
@@ -103,7 +95,6 @@ function evaluateStatus(view: EmpreendimentoCardView): StatusInfo {
     }
   }
 
-  // Caso comum: tem abertos, ativo recentemente.
   return {
     kind: "ativo",
     stripeClass: "bg-gradient-to-b from-amber-400 to-amber-600",
@@ -135,18 +126,11 @@ type Props = {
   view: EmpreendimentoCardView;
 };
 
-/**
- * Card de empreendimento com info densa: status semantico, stripe pulsando
- * em vermelho quando urgente, distribuicao por materia, atividade relativa
- * e atrasados em destaque.
- */
 export function EmpreendimentoCard({ view }: Props) {
   const status = evaluateStatus(view);
   const isEmpty = status.kind === "vazio" && view.nUnidades === 0;
 
-  // Card e um <div> (nao Link) pra permitir botoes interativos no rodape.
-  // Um Link absoluto cobre o conteudo principal — clique em qualquer lugar
-  // do conteudo navega, mas os botoes do rodape sao siblings z-elevados.
+  // <div> pra permitir botoes no rodape; Link absoluto cobre conteudo.
   return (
     <div
       className={cn(
@@ -254,11 +238,7 @@ function CategoriaChips({
       {ORDEM_CATEGORIA.map((cat) => {
         const n = abertosPorCategoria[cat] ?? 0;
         const label = CATEGORIA_LABELS[cat].toLowerCase();
-        if (n === 0) {
-          // Esconde categorias zeradas pra nao poluir — modo "high-signal".
-          // Hoje a regra antiga mostrava tudo. Aqui prefiro ver so o que tem.
-          return null;
-        }
+        if (n === 0) return null;
         return (
           <span
             key={cat}

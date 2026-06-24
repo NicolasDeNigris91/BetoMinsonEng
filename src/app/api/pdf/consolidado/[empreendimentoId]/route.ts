@@ -79,8 +79,7 @@ export async function GET(
       .from(vistorias)
       .innerJoin(unidades, eq(unidades.id, vistorias.unidadeId))
       .where(eq(unidades.empreendimentoId, empreendimentoId)),
-    // Todos os achados das unidades deste empreendimento — base pra KPIs e
-    // lista de abertos por unidade.
+    // limit 20k: hard cap pra evitar OOM em empreendimentos grandes.
     db
       .select({
         id: achados.id,
@@ -95,7 +94,8 @@ export async function GET(
       })
       .from(achados)
       .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
-      .where(eq(unidades.empreendimentoId, empreendimentoId)),
+      .where(eq(unidades.empreendimentoId, empreendimentoId))
+      .limit(20000),
     db
       .select({
         unidadeId: vistorias.unidadeId,
@@ -311,7 +311,7 @@ export async function GET(
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${filename}"`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "private, max-age=60",
       "X-Robots-Tag": "noindex, nofollow",
     },
   });

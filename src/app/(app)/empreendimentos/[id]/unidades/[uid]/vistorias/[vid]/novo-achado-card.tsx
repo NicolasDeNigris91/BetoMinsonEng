@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { HardHat, Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, UserCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -11,14 +11,10 @@ import {
   type EventoTipo,
 } from "@/db/schema";
 import { AchadoFormDialog } from "./novo-achado-dialog";
-import { addComentarioEngenheiroAction, deleteAchadoAction } from "./actions";
+import { deleteAchadoAction } from "./actions";
 import { EventoEditor } from "./evento-editor";
 import type { FotoView } from "@/components/photo-uploader";
 import { PrazoBadge } from "@/components/prazo-badge";
-import {
-  ThreadComentarios,
-  type ComentarioView,
-} from "@/components/thread-comentarios";
 import { toast } from "sonner";
 import {
   CATEGORIA_BADGE_CLASS,
@@ -29,8 +25,6 @@ import {
 import { formatDateTime, type DateFormat } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { isNextRedirectError } from "@/lib/next-errors";
-
-const ENGENHARIA_NOME = "Roberto Minson";
 
 function fileUrl(path: string, token?: string): string {
   const base = `/api/files/${path}`;
@@ -57,20 +51,8 @@ type Props = {
   editable: boolean;
   /** Vistoriador da vistoria — exibido como autor na linha de audit. */
   autor: string | null;
-  /**
-   * Quando setado, o evento foi registrado por um profissional via link
-   * publico de um escopo. Substitui o nome do vistoriador na linha de
-   * audit por "via escopo: X" pra ficar claro que nao foi a engenharia.
-   */
-  escopoOrigemNome?: string | null;
-  /**
-   * Escopo onde a conversa entre engenharia e profissional acontece.
-   * Quando setado, o card renderiza o thread de comentarios. Normalmente
-   * coincide com a presenca de escopoOrigemNome.
-   */
-  escopoOrigemId?: string | null;
-  /** Mensagens trocadas no thread (achadoId, escopoOrigemId). Pode ser vazio. */
-  comentarios?: ComentarioView[];
+  funcionarioOrigemNome?: string | null;
+  funcionarioOrigemId?: string | null;
   evento: {
     id: string;
     tipo: EventoTipo;
@@ -87,9 +69,7 @@ export function NovoAchadoCard({
   achado,
   editable,
   autor,
-  escopoOrigemNome,
-  escopoOrigemId,
-  comentarios,
+  funcionarioOrigemNome,
   evento,
   shareToken,
   dateFmt,
@@ -161,12 +141,12 @@ export function NovoAchadoCard({
       <span className="tabular-nums text-muted-foreground">
         {formatDateTime(evento.createdAt, dateFmt)}
       </span>
-      {escopoOrigemNome ? (
+      {funcionarioOrigemNome ? (
         <>
           <span className="text-muted-foreground/60">·</span>
-          <span className="inline-flex items-center gap-1 text-brand">
-            <HardHat className="size-3" aria-hidden />
-            via escopo: {escopoOrigemNome}
+          <span className="inline-flex items-center gap-1 text-sky-700 dark:text-sky-400">
+            <UserCircle2 className="size-3" aria-hidden />
+            via funcionário: {funcionarioOrigemNome}
           </span>
         </>
       ) : autor ? (
@@ -239,24 +219,6 @@ export function NovoAchadoCard({
               </p>
             ) : null}
             {auditLine}
-            {escopoOrigemId ? (
-              <div className="pt-2 border-t border-dashed">
-                <ThreadComentarios
-                  comentarios={comentarios ?? []}
-                  meuPapel="engenharia"
-                  profissionalNome={escopoOrigemNome ?? "Profissional"}
-                  engenhariaNome={ENGENHARIA_NOME}
-                  onSubmit={async (texto) => {
-                    return addComentarioEngenheiroAction(
-                      escopoOrigemId,
-                      achado.id,
-                      texto,
-                    );
-                  }}
-                  dateFmt={dateFmt}
-                />
-              </div>
-            ) : null}
           </div>
         </div>
       </div>

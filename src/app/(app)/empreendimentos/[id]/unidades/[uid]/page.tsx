@@ -94,13 +94,11 @@ function achadoMatchesFilter(
   if (selectedStatus === "todos") return true;
   if (selectedStatus === "resolvido") return achado.status === "resolvido";
   if (selectedStatus === "aberto") return achado.status === "aberto";
-  // atrasado = aberto com prazo vencido
   if (achado.status !== "aberto") return false;
   const prazo = evaluatePrazo(achado.prazoEm);
   return prazo?.kind === "atrasado";
 }
 
-// Ordem fixa do enum pra tiles ficarem consistentes entre vistorias.
 const ORDEM_CATEGORIA: Categoria[] = [
   "ELE",
   "HID",
@@ -111,11 +109,8 @@ const ORDEM_CATEGORIA: Categoria[] = [
 ];
 
 /**
- * Agrupa achados por (vistoria × categoria) e conta status atual. Achado
- * pode ter virios eventos na mesma vistoria — dedupe via Set garante
- * uma contagem por achado, nao por evento. Eventos chegam ja filtrados
- * pelo filtro ativo da pagina (status/categoria), entao a contagem aqui
- * reflete o filtro.
+ * Dedupe via Set: achado pode ter varios eventos na mesma vistoria,
+ * conta por achado nao por evento.
  */
 export function buildTilesByVistoria(
   eventosByVistoria: Map<string, EventoView[]>,
@@ -199,8 +194,6 @@ export default async function UnidadeDetailPage({
       })
       .from(achados)
       .where(eq(achados.unidadeId, uid)),
-    // Todos os achados da unidade — usado pra: contagem por categoria (chips),
-    // mapa de status/prazo (filtro), e categorias presentes (quais chips mostrar).
     db
       .select({
         id: achados.id,
@@ -210,9 +203,6 @@ export default async function UnidadeDetailPage({
       })
       .from(achados)
       .where(eq(achados.unidadeId, uid)),
-    // Eventos por vistoria — alimentam as tiles por matéria no card.
-    // Sem id/tipo/createdAt: o card mostra contagens, nao o log linha
-    // a linha (esse vive em /vistorias/[vid]).
     db
       .select({
         vistoriaId: achadoEventos.vistoriaId,
@@ -224,7 +214,6 @@ export default async function UnidadeDetailPage({
       .innerJoin(vistorias, eq(vistorias.id, achadoEventos.vistoriaId))
       .where(eq(vistorias.unidadeId, uid))
       .orderBy(asc(achadoEventos.createdAt)),
-    // Achados em aberto da unidade — base do dialog de pendencias por rascunho.
     db
       .select({
         id: achados.id,
@@ -240,17 +229,14 @@ export default async function UnidadeDetailPage({
 
   if (!unidade || !emp) notFound();
 
-  // Mapa achadoId -> dados — base do filtro aplicado em event rows.
   const achadoById = new Map(achadosDaUnidade.map((a) => [a.id, a]));
 
-  // Conjunto de achadoIds que batem o filtro atual.
   const achadosFiltradosIds = new Set(
     achadosDaUnidade
       .filter((a) => achadoMatchesFilter(a, selectedCategorias, selectedStatus))
       .map((a) => a.id),
   );
 
-  // Contagem total de achados por categoria (sem filtro) — exibida nos chips.
   const totaisPorCategoria: Record<Categoria, number> = {
     ELE: 0,
     HID: 0,
@@ -264,8 +250,6 @@ export default async function UnidadeDetailPage({
   const hasFilter =
     selectedCategorias.length > 0 || selectedStatus !== "todos";
 
-  // (vistoriaId -> EventoView[]) — eventos filtrados pelo estado/categoria
-  // do achado correspondente. Alimenta o calculo das tiles por matéria.
   const eventosByVistoria = new Map<string, EventoView[]>();
   for (const row of eventosRows) {
     if (!achadosFiltradosIds.has(row.achadoId)) continue;
@@ -280,9 +264,6 @@ export default async function UnidadeDetailPage({
     (c) => totaisPorCategoria[c] > 0,
   );
 
-  // Pendencias globais da unidade — alimenta o botao "Resolver pendencias"
-  // no header. Aplica o filtro ativo: se o usuario filtrou pra "atrasado HID",
-  // o botao mostra a contagem e as pendencias dessa fatia.
   const pendenciasGlobais: PendenciaView[] = achadosAbertosRows
     .filter((a) => {
       const achado = achadoById.get(a.id);
@@ -297,8 +278,6 @@ export default async function UnidadeDetailPage({
       prazoEm: a.prazoEm,
     }));
 
-  // Vistorias visiveis: quando ha filtro, esconde vistorias que ficaram
-  // sem nenhum event row depois do filtro.
   const vistoriasVisiveis = hasFilter
     ? vistoriasList.filter((v) => (eventosByVistoria.get(v.id)?.length ?? 0) > 0)
     : vistoriasList;

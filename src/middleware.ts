@@ -5,20 +5,12 @@ type SessionData = {
   loggedInAt?: number;
 };
 
-// Rotas que o middleware NAO deve barrar por falta de session. Cada uma
-// faz sua propria verificacao de auth internamente — session ou token de
-// share. Sem essa lista, requests publicos via token (upload pelo celular,
-// PDF compartilhado) sao redirecionados pra /login antes mesmo de chegar
-// na rota, e o body grande (foto) bate no limite de 1MB do POST /login,
-// devolvendo 500 sem JSON.
-//
-// Importante: incluir /api/pdf/ como prefixo cobre tambem consolidado/ e
-// evolucao/, que sao session-only. Essas rotas ja chamam isLoggedIn() na
-// primeira linha, entao o middleware deixar passar nao vaza nada — apenas
-// delega a autorizacao pra rota, que e o pattern correto em Next.js.
+// Cada rota faz sua propria checagem (session ou token). Sem isso, upload
+// publico via token redireciona pra /login e o body grande estoura limite
+// do POST /login, devolvendo 500 sem JSON.
 const PUBLIC_PATHS = [
   "/login",
-  "/v/",
+  "/f/",
   "/_next/",
   "/favicon.ico",
   "/robots.txt",

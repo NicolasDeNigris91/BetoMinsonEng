@@ -2,18 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq, sql, inArray } from "drizzle-orm";
+import { eq, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
-  achadoComentarios,
   achadoEventos,
   achados,
   categoriaEnum,
-  escopoAchados,
-  escopos,
   fotos,
-  unidades,
   vistorias,
 } from "@/db/schema";
 import { requireMutation } from "@/lib/require-mutation";
@@ -47,12 +43,6 @@ export type NovoAchadoState = {
   error?: string;
 };
 
-/**
- * Guarda de regra de negocio: vistoria precisa estar em rascunho pra
- * aceitar edicao. Retorna ActionError pra ser propagado como valor — em
- * producao Next ofusca msg de throws em server actions (ver
- * action-result.ts).
- */
 function editableGuard(ctx: VistoriaCtx): ActionError | null {
   if (ctx.vistoriaStatus !== "rascunho") {
     return actionError("Vistoria já finalizada. Reabra antes de editar.");
@@ -84,76 +74,6 @@ export async function setAchadoStateInVistoriaAction(
   invalidateAchados();
 }
 
-const comentarioSchema = z.object({
-  texto: z
-    .string()
-    .trim()
-    .min(1, "Mensagem vazia.")
-    .max(2000, "Mensagem muito longa (máx. 2000 caracteres)."),
-});
-
-/**
- * Adiciona um comentario da engenharia no thread (achadoId, escopoId).
- * Thread vive em paralelo aos achadoEventos: eventos representam transicoes
- * de estado (persiste/resolvido); comentarios sao a negociacao em volta.
- *
- * Auth: sessao admin (`requireMutation`). Achado precisa estar no escopo —
- * sem essa amarra, um id forjado de outro escopo passaria livre.
- */
-export async function addComentarioEngenheiroAction(
-  escopoId: string,
-  achadoId: string,
-  texto: string,
-): Promise<VoidActionResult> {
-  await requireMutation();
-
-  const parsed = comentarioSchema.safeParse({ texto });
-  if (!parsed.success) {
-    return actionError(parsed.error.issues[0]?.message ?? "Comentário inválido.");
-  }
-
-  // Resolve achado + escopo + checa vinculo numa unica query.
-  const [vinculo] = await db
-    .select({
-      empreendimentoId: unidades.empreendimentoId,
-      unidadeId: achados.unidadeId,
-      escopoEmpreendimentoId: escopos.empreendimentoId,
-    })
-    .from(escopoAchados)
-    .innerJoin(achados, eq(achados.id, escopoAchados.achadoId))
-    .innerJoin(unidades, eq(unidades.id, achados.unidadeId))
-    .innerJoin(escopos, eq(escopos.id, escopoAchados.escopoId))
-    .where(
-      and(
-        eq(escopoAchados.escopoId, escopoId),
-        eq(escopoAchados.achadoId, achadoId),
-      ),
-    )
-    .limit(1);
-
-  if (!vinculo) {
-    return actionError("Achado não pertence a este escopo.");
-  }
-
-  await db.insert(achadoComentarios).values({
-    achadoId,
-    escopoId,
-    autor: "engenharia",
-    texto: parsed.data.texto,
-  });
-
-  // Comentario vive em (achado, escopo) e pode aparecer em multiplas
-  // vistorias do mesmo achado. Revalida unidade (cobre todas as vistorias)
-  // e a pagina do escopo.
-  revalidatePath(
-    `/empreendimentos/${vinculo.empreendimentoId}/unidades/${vinculo.unidadeId}`,
-  );
-  revalidatePath(
-    `/empreendimentos/${vinculo.escopoEmpreendimentoId}/escopos/${escopoId}`,
-  );
-  invalidateAchados();
-}
-
 export async function createAchadoAction(
   vistoriaId: string,
   _prev: NovoAchadoState,
@@ -181,9 +101,6 @@ export async function createAchadoAction(
   }
 
   await db.transaction(async (tx) => {
-    // Proximo ordem = max(ordem) + 1 dos achados criados nesta mesma
-    // vistoria. Garante que cada novo achado vai pro final da lista, sem
-    // colidir com reordenacoes ja salvas.
     const [maxRow] = await tx
       .select({
         max: sql<number>`coalesce(max(${achados.ordem}), 0)::int`,
@@ -256,9 +173,7 @@ export async function updateAchadoAction(
     return { fieldErrors };
   }
 
-  // Authz: limita a edicao a achados da mesma unidade da vistoria do
-  // contexto. Sem isso, um id forjado de outra unidade/empreendimento
-  // passaria livre (single-user reduz mas nao zera o risco).
+  // Authz: id forjado de outra unidade passaria livre sem essa amarra.
   const [achado] = await db
     .select({ unidadeId: achados.unidadeId })
     .from(achados)
@@ -321,12 +236,6 @@ export async function deleteAchadoAction(
   invalidateAchados();
 }
 
-/**
- * Reordena achados criados nesta vistoria. Recebe a nova lista de ids na
- * ordem desejada e atribui ordem = 1..N. Valida que todos os ids pertencem
- * a vistoria (vistoriaOrigemId) — protege contra reordenar achado de outra
- * vistoria via id forjado.
- */
 export async function reorderAchadosAction(
   vistoriaId: string,
   achadoIdsInOrder: string[],
@@ -338,8 +247,7 @@ export async function reorderAchadosAction(
 
   if (achadoIdsInOrder.length === 0) return;
 
-  // Validacao de ownership feita ANTES da transacao pra poder retornar
-  // como ActionError em vez de jogar throw (que seria ofuscado em prod).
+  // Ownership antes da transacao: throw ali viraria erro ofuscado em prod.
   const rows = await db
     .select({ id: achados.id, vistoriaOrigemId: achados.vistoriaOrigemId })
     .from(achados)
@@ -355,8 +263,6 @@ export async function reorderAchadosAction(
   }
 
   await db.transaction(async (tx) => {
-    // Atualiza um por um. Lista e curta o suficiente (<50) pra que N queries
-    // sejam aceitaveis e mantem o codigo simples.
     for (let i = 0; i < achadoIdsInOrder.length; i++) {
       await tx
         .update(achados)
@@ -457,8 +363,6 @@ export async function deleteVistoriaFromEditPageAction(
   invalidateVistorias();
   invalidateAchados();
 
-  // redirect() joga NEXT_REDIRECT — sinal de sucesso, tratado pelo
-  // isNextRedirectError no client.
   redirect(
     `/empreendimentos/${ctx.empreendimentoId}/unidades/${ctx.unidadeId}`,
   );

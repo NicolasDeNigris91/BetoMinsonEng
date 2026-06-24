@@ -26,39 +26,19 @@ import { reorderAchadosAction } from "./actions";
 
 type Props = {
   vistoriaId: string;
-  /** Ids dos achados criados nesta vistoria, na ordem atual (vinda do server).
-   *  Acompanha o children pra que cada filho corresponda 1:1 a um id. */
   achadoIds: string[];
-  /** Quando true, mostra handle e ativa o drag. False = render passthrough. */
   reorderable: boolean;
-  /** Filhos sao os <NovoAchadoCard> ja renderizados pelo server, na mesma
-   *  ordem dos achadoIds. */
   children: React.ReactNode[];
 };
 
-/**
- * Wrapper que torna a lista de achados criados nesta vistoria reordenavel
- * via drag-and-drop. Estado otimista local (`order`) reordena os filhos
- * antes mesmo da round-trip do server; em caso de erro reverte e mostra
- * toast.
- *
- * Quando `reorderable=false`, renderiza os filhos diretamente sem dnd —
- * caminho usado em vistorias finalizadas.
- */
 export function AchadosSortableList({
   vistoriaId,
   achadoIds,
   reorderable,
   children,
 }: Props) {
-  // Estado local da ordem; inicializa com a do server. Otimismo: muda na
-  // hora do drop, server reconcilia no proximo refresh.
-  //
-  // Re-sincroniza durante render quando achadoIds do server muda (ex: novo
-  // achado criado ou apagado). Sem isso, o estado local fica preso na lista
-  // do mount inicial e novos achados ficam "invisiveis" mesmo o contador
-  // dizendo que tem mais. Pattern oficial do React de "store information
-  // from previous renders" sem useEffect.
+  // Re-sync via "previous renders" pattern (sem useEffect): se achadoIds
+  // muda do server, novos achados ficariam invisiveis no estado local.
   const idsKey = achadoIds.join("|");
   const [order, setOrder] = useState<string[]>(achadoIds);
   const [syncedKey, setSyncedKey] = useState<string>(idsKey);
@@ -77,9 +57,6 @@ export function AchadosSortableList({
     return <div className="space-y-2">{children}</div>;
   }
 
-  // Map id -> child. Server passa children na mesma ordem que achadoIds,
-  // entao indexar por posicao funciona. Re-renders mantem a associacao
-  // estavel via key no NovoAchadoCard (que ja usa ev.id).
   const childById = new Map<string, React.ReactNode>();
   for (let i = 0; i < achadoIds.length; i++) {
     childById.set(achadoIds[i], children[i]);

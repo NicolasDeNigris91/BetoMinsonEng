@@ -67,9 +67,8 @@ export default async function EmpreendimentosPage({
   const hideEmpty = sp.hideEmpty === "1";
   const hojeISO = new Date().toISOString().slice(0, 10);
 
-  // Fetch tudo de uma vez. Pra escala atual (<100 empreendimentos) e melhor
-  // que paginar no DB porque filtros/sort dependem de agregados — fazer no
-  // DB exigiria joins complexos com subqueries. Em memoria fica direto.
+  // Filtros e sort dependem de agregados; pagina em memoria pra evitar
+  // JOIN com subqueries na escala atual (<100 empreendimentos).
   const [
     todosEmpreendimentos,
     unidadesPorEmp,
@@ -84,12 +83,12 @@ export default async function EmpreendimentosPage({
     [totalAbertosRow],
     [totalAtrasadosRow],
   ] = await Promise.all([
+    // limit 200: hard cap antes de virar paginacao cursor-based.
     db
       .select()
       .from(empreendimentos)
-      .orderBy(desc(empreendimentos.createdAt)),
-    // Lista de (id, nome) de cada unidade por empreendimento — alimenta o
-    // dropdown "+ Vistoria" no card. Ordenado por ordem manual e nome.
+      .orderBy(desc(empreendimentos.createdAt))
+      .limit(200),
     db
       .select({
         empreendimentoId: unidades.empreendimentoId,
@@ -176,7 +175,6 @@ export default async function EmpreendimentosPage({
   const totalAbertos = Number(totalAbertosRow?.n ?? 0);
   const totalAtrasados = Number(totalAtrasadosRow?.n ?? 0);
 
-  // Indexa todos os agregados por empreendimentoId.
   const unidadesPor = new Map(
     unidadesRows.map((r) => [r.empreendimentoId, Number(r.n)]),
   );
@@ -208,7 +206,6 @@ export default async function EmpreendimentosPage({
     unidadesListPor.set(row.empreendimentoId, arr);
   }
 
-  // Constroi view models — um por empreendimento da base inteira.
   let views: EmpreendimentoCardView[] = todosEmpreendimentos.map((emp) => ({
     id: emp.id,
     nome: emp.nome,
@@ -226,8 +223,6 @@ export default async function EmpreendimentosPage({
     unidades: unidadesListPor.get(emp.id) ?? [],
   }));
 
-  // Filtro de texto: nome ou cliente. Lowercase comparison sem acento
-  // simples (o user nao deve digitar com acento e a base pode ter ou nao).
   if (q.length > 0) {
     const needle = q.toLowerCase();
     views = views.filter((v) => {
@@ -237,18 +232,14 @@ export default async function EmpreendimentosPage({
     });
   }
 
-  // Esconder sem atividade: sem unidades OU sem nenhuma vistoria.
   if (hideEmpty) {
     views = views.filter(
       (v) => v.nUnidades > 0 && v.ultimaAtividadeISO !== null,
     );
   }
 
-  // Ordenacao em memoria sobre o view model — usa os mesmos campos que o
-  // card renderiza, evitando dupla source-of-truth.
   views.sort((a, b) => sortCompare(a, b, sort));
 
-  // Pagina o resultado filtrado/ordenado.
   const totalFiltrado = views.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE));
   const offset = (page - 1) * PAGE_SIZE;
@@ -256,7 +247,6 @@ export default async function EmpreendimentosPage({
 
   const hasAnyFilter = q.length > 0 || hideEmpty || sort !== "ativos";
 
-  // Mantem os params (exceto page) ao mudar de pagina.
   const buildPageHref = (p: number): string => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
@@ -390,17 +380,12 @@ function sortCompare(
     case "alfabetico":
       return a.nome.localeCompare(b.nome, "pt-BR");
     case "recentes":
-      // Recentes = ordem default original (createdAt desc do query) ja
-      // chegou ordenada. Sem campo createdAt no view model, usa
-      // ultimaAtividadeISO como aproximacao razoavel.
+      // ultimaAtividadeISO aproxima createdAt (nao esta no view model).
       return cmpIsoDesc(a.ultimaAtividadeISO, b.ultimaAtividadeISO);
     case "atrasados":
-      // Atrasados primeiro, depois ativos.
       if (a.nAtrasados !== b.nAtrasados) return b.nAtrasados - a.nAtrasados;
       return cmpIsoDesc(a.ultimaAtividadeISO, b.ultimaAtividadeISO);
     case "sem-vistorias":
-      // Os COM vistorias na frente, sem vistorias no fim. Dentro de cada
-      // grupo, mais ativos primeiro.
       const aHas = a.ultimaAtividadeISO !== null ? 1 : 0;
       const bHas = b.ultimaAtividadeISO !== null ? 1 : 0;
       if (aHas !== bHas) return bHas - aHas;

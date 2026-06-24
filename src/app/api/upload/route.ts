@@ -5,8 +5,8 @@ import { nanoid } from "nanoid";
 import { db } from "@/db";
 import {
   achadoEventos,
-  escopoShareTokens,
   fotos,
+  funcionarios,
   shareTokens,
   vistorias,
 } from "@/db/schema";
@@ -49,29 +49,21 @@ async function uploadTokenAllowsVistoria(
   return Boolean(row);
 }
 
-/**
- * Token de escopo (link do profissional): autoriza upload de foto pra
- * eventos que foram registrados ATRAVES desse mesmo escopo
- * (achadoEventos.escopoOrigemId === escopo do token). Como cada acao do
- * profissional grava esse campo no evento, esse e o vinculo natural — e
- * impede o link do escopo de anexar foto em eventos de outro contexto
- * (vistoria de inspecao, outro escopo).
- */
-async function escopoTokenAllowsEvento(
+async function funcionarioTokenAllowsEvento(
   token: string,
   achadoEventoId: string,
 ): Promise<boolean> {
   const [row] = await db
-    .select({ id: escopoShareTokens.id })
-    .from(escopoShareTokens)
+    .select({ id: funcionarios.id })
+    .from(funcionarios)
     .innerJoin(
       achadoEventos,
-      eq(achadoEventos.escopoOrigemId, escopoShareTokens.escopoId),
+      eq(achadoEventos.funcionarioOrigemId, funcionarios.id),
     )
     .where(
       and(
-        eq(escopoShareTokens.token, token),
-        isNull(escopoShareTokens.revogadoEm),
+        eq(funcionarios.token, token),
+        isNull(funcionarios.desativadoEm),
         eq(achadoEventos.id, achadoEventoId),
       ),
     )
@@ -83,7 +75,6 @@ export async function POST(req: Request) {
   const url = new URL(req.url);
   const uploadToken = url.searchParams.get("token");
 
-  // Reject before parsing the body when there is no plausible auth.
   const sessionOk = await isLoggedIn();
   if (!sessionOk && !uploadToken) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -112,9 +103,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // FormData crasha quando o body nao e multipart valido (header sem boundary,
-  // body vazio, content-type errado). Em vez de subir 500 generico, devolve
-  // 400 com mensagem util.
+  // Body invalido (boundary/CT errado) crashava FormData com 500 generico.
   let form: FormData;
   try {
     form = await req.formData();
@@ -153,9 +142,7 @@ export async function POST(req: Request) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  // Validacao real de tipo: file.type vem do cliente e e trivial spoofar.
-  // Magic bytes (primeiros bytes) sao a unica forma confiavel — qualquer
-  // coisa que nao seja JPEG/PNG/WEBP/HEIC e rejeitada antes do Sharp.
+  // file.type vem do cliente, spoofavel — magic bytes e a unica forma confiavel.
   const kind = detectImageKind(buffer);
   if (kind === "unknown") {
     return NextResponse.json(
@@ -163,10 +150,8 @@ export async function POST(req: Request) {
       { status: 415 },
     );
   }
-  // Sharp na imagem base do Railway nao tem libheif compilado — HEIC
-  // crasha com mensagem generica de processamento. Pra usuario de iPhone
-  // em obra, isso vira frustracao silenciosa. Bloqueia explicito com
-  // instrucao clara.
+  // Sharp na imagem base do Railway nao tem libheif — bloqueia explicito
+  // com instrucao em vez de crash generico do processamento.
   if (kind === "heic" || kind === "heif") {
     return NextResponse.json(
       {
@@ -195,11 +180,8 @@ export async function POST(req: Request) {
       { status: 404 },
     );
   }
-  // Trava so o evento "criado" em vistoria finalizada — esse representa
-  // o registro original da visita e nao deve receber fotos depois sem
-  // reabrir. Outros tipos (resolvido/persiste/nota) sao por design
-  // retroativos: podem receber fotos de comprovacao mesmo em vistoria
-  // ja finalizada.
+  // So o evento 'criado' em vistoria finalizada e travado; outros tipos
+  // sao por design retroativos.
   if (
     evento.vistoriaStatus === "finalizada" &&
     evento.tipo === "criado"
@@ -214,13 +196,10 @@ export async function POST(req: Request) {
   }
 
   if (!sessionOk) {
-    // Aceita 2 tipos de token: vistoria (share_tokens.permiteUpload, fluxo
-    // celular do vistoriador) ou escopo (escopo_share_tokens, fluxo do
-    // profissional). Testa primeiro o mais comum e cai pro outro.
     const tokenOk =
       Boolean(uploadToken) &&
       ((await uploadTokenAllowsVistoria(uploadToken!, evento.vistoriaId)) ||
-        (await escopoTokenAllowsEvento(uploadToken!, evento.id)));
+        (await funcionarioTokenAllowsEvento(uploadToken!, evento.id)));
     if (!tokenOk) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }

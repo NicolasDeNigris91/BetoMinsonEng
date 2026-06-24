@@ -94,9 +94,6 @@ export function PhotoUploader({
     remaining: File[];
     processed: File[];
   } | null>(null);
-  // Estado quando o usuario clica "marcar" numa foto JA enviada: baixamos
-  // o arquivo original, abrimos o PhotoEditor com ele, e ao confirmar
-  // chamamos /api/photo/[id]/replace pra trocar os bytes preservando ordem.
   const [editingFoto, setEditingFoto] = useState<{
     fotoId: string;
     file: File;
@@ -105,11 +102,7 @@ export function PhotoUploader({
     null,
   );
 
-  // Ordem otimista local — espelha a do server por default e muda
-  // imediatamente no drop pra sensacao instantanea. Re-sincroniza durante
-  // render quando fotos do server mudam (upload novo, exclusao) usando o
-  // pattern oficial do React de "store information from previous renders"
-  // sem useEffect.
+  // Ordem otimista — react sync via "previous renders" pattern (sem useEffect).
   const serverOrderKey = fotos.map((f) => f.id).join("|");
   const [orderIds, setOrderIds] = useState<string[]>(fotos.map((f) => f.id));
   const [syncedKey, setSyncedKey] = useState<string>(serverOrderKey);
@@ -242,10 +235,8 @@ export function PhotoUploader({
     void handleUpload(imageFiles);
   };
 
-  // Ctrl+V cola imagem do clipboard direto no achado. Escopo = elemento pai
-  // (EventoEditor), que envolve o textarea de notas + este uploader: assim
-  // o paste so dispara quando o foco esta dentro deste achado, evitando
-  // ambiguidade entre multiplos achados em modo de edicao na mesma pagina.
+  // Paste limitado ao parentElement pra desambiguar varios achados
+  // simultaneos em edicao na mesma pagina.
   useEffect(() => {
     if (!editable) return;
     const root = rootRef.current;
@@ -302,9 +293,8 @@ export function PhotoUploader({
   const handleReplaceConfirm = async (edited: File) => {
     if (!editingFoto) return;
     const fotoId = editingFoto.fotoId;
-    // Nao fecha o editor ate o replace retornar OK — se a rede falhar
-    // (3G de obra), o usuario tem chance de tentar de novo sem perder
-    // a marcacao que acabou de fazer no canvas.
+    // Mantem editor aberto ate retornar OK pra preservar marcacao se
+    // o replace falhar (3G de obra).
     start(async () => {
       try {
         const fd = new FormData();

@@ -20,7 +20,8 @@ export const CACHE_TAGS = {
   unidades: "unidades",
   vistorias: "vistorias",
   achados: "achados",
-  escopos: "escopos",
+  funcionarios: "funcionarios",
+  mensagens: "mensagens",
 } as const;
 
 export type CacheTag = (typeof CACHE_TAGS)[keyof typeof CACHE_TAGS];
@@ -50,6 +51,10 @@ export function invalidateUnidades(): void {
   updateTag(CACHE_TAGS.unidades);
 }
 
-export function invalidateEscopos(): void {
-  updateTag(CACHE_TAGS.escopos);
+export function invalidateFuncionarios(): void {
+  updateTag(CACHE_TAGS.funcionarios);
+}
+
+export function invalidateMensagens(): void {
+  updateTag(CACHE_TAGS.mensagens);
 }

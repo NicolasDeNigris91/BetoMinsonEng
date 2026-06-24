@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { eq, and, ne, asc, gt, desc, count, sql, inArray } from "drizzle-orm";
+import { eq, and, ne, asc, gt, desc, count, sql } from "drizzle-orm";
 import { CheckCircle2, ClipboardCheck } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { db } from "@/db";
 import {
-  achadoComentarios,
   achadoEventos,
   achados,
   empreendimentos,
@@ -94,6 +93,8 @@ export default async function VistoriaPage({
       .from(empreendimentos)
       .where(eq(empreendimentos.id, id))
       .limit(1),
+    // Hard cap: 500 achados em aberto numa unica unidade ja e cenario
+    // extremo. Defesa contra payload SSR descontrolado e hidratacao lenta.
     db
       .select()
       .from(achados)
@@ -104,13 +105,14 @@ export default async function VistoriaPage({
           ne(achados.vistoriaOrigemId, vid),
         ),
       )
-      .orderBy(asc(achados.categoria), asc(achados.createdAt)),
+      .orderBy(asc(achados.categoria), asc(achados.createdAt))
+      .limit(500),
     db.query.achadoEventos.findMany({
       where: eq(achadoEventos.vistoriaId, vid),
       with: {
         fotos: { orderBy: (f, { asc }) => asc(f.ordem) },
         achado: true,
-        escopoOrigem: true,
+        funcionarioOrigem: true,
       },
       orderBy: asc(achadoEventos.createdAt),
     }),
@@ -129,9 +131,6 @@ export default async function VistoriaPage({
         ),
       )
       .orderBy(desc(shareTokens.criadoEm)),
-    // Templates de achados frequentes — combinacoes (categoria, local,
-    // descricao) que se repetem 2+ vezes no empreendimento. Alimenta o
-    // painel "Templates frequentes" do dialog de novo achado.
     db
       .select({
         categoria: achados.categoria,
@@ -154,56 +153,8 @@ export default async function VistoriaPage({
     eventosNestaVistoria.map((e) => [e.achadoId, e]),
   );
 
-  // Carrega comentarios pros pares (achadoId, escopoId) presentes nos
-  // eventos com escopoOrigem. Cada par eh um thread isolado entre a
-  // engenharia e o profissional daquele escopo.
-  const eventosComEscopo = eventosNestaVistoria.filter(
-    (e) => e.escopoOrigemId != null,
-  );
-  const comentarioPairs = eventosComEscopo.map((e) => ({
-    achadoId: e.achadoId,
-    escopoId: e.escopoOrigemId as string,
-  }));
-  const achadoIdsComEscopo = Array.from(
-    new Set(comentarioPairs.map((p) => p.achadoId)),
-  );
-  const escopoIdsRelevantes = Array.from(
-    new Set(comentarioPairs.map((p) => p.escopoId)),
-  );
-  const comentariosRows =
-    achadoIdsComEscopo.length > 0 && escopoIdsRelevantes.length > 0
-      ? await db
-          .select()
-          .from(achadoComentarios)
-          .where(
-            and(
-              inArray(achadoComentarios.achadoId, achadoIdsComEscopo),
-              inArray(achadoComentarios.escopoId, escopoIdsRelevantes),
-            ),
-          )
-          .orderBy(asc(achadoComentarios.createdAt))
-      : [];
-  // Agrupa por (achadoId|escopoId). Filtra em JS pros pares exatos —
-  // o IN de cima pode trazer linhas extras se o mesmo achado estiver
-  // em outro escopo que tambem aparece nesta vistoria.
-  const pairsSet = new Set(
-    comentarioPairs.map((p) => `${p.achadoId}|${p.escopoId}`),
-  );
-  const comentariosPorPar = new Map<string, typeof comentariosRows>();
-  for (const c of comentariosRows) {
-    const key = `${c.achadoId}|${c.escopoId}`;
-    if (!pairsSet.has(key)) continue;
-    const arr = comentariosPorPar.get(key) ?? [];
-    arr.push(c);
-    comentariosPorPar.set(key, arr);
-  }
-
-  // Pra cada achado originado aqui, junta TODOS os eventos da vistoria —
-  // permite mostrar "achado criado" e "resolvido" como cards separados.
-  // Ordem: por achado (ordem do novosAchados — afetada por drag-drop), e
-  // dentro de cada achado o criado vem sempre antes de resolvido —
-  // independente de timestamps, porque resolvido sem criado nao faz sentido
-  // semantico.
+  // Ordem por achado, e criado antes de resolvido independente de
+  // timestamp (resolvido sem criado nao faz sentido semantico).
   const TIPO_ORDER: Record<typeof eventosNestaVistoria[number]["tipo"], number> = {
     criado: 0,
     persiste: 1,
@@ -297,9 +248,8 @@ export default async function VistoriaPage({
               </h2>
               {checklist.length > 0
                 ? (() => {
-                    // "marcados" = quantos do checklist ja tem evento NESTA
-                    // vistoria. Nao usar eventByAchadoId.size direto porque
-                    // ele inclui os 'criado' dos novos achados desta vistoria.
+                    // size direto incluiria os 'criado' dos novos achados,
+                    // que nao contam pro checklist.
                     const marcados = checklist.reduce(
                       (n, a) => n + (eventByAchadoId.has(a.id) ? 1 : 0),
                       0,
@@ -438,50 +388,30 @@ export default async function VistoriaPage({
           >
             {eventosPorAchado.map((g) => (
               <div key={g.achado.id} className="space-y-2">
-                {g.eventos.map((ev) => {
-                  const escopoOrigemId = ev.escopoOrigemId;
-                  const threadComentarios =
-                    escopoOrigemId != null
-                      ? (comentariosPorPar.get(
-                          `${ev.achadoId}|${escopoOrigemId}`,
-                        ) ?? [])
-                      : [];
-                  return (
-                    <NovoAchadoCard
-                      key={ev.id}
-                      vistoriaId={vistoria.id}
-                      achado={ev.achado!}
-                      // So o evento "criado" e editavel — eventos "resolvido"
-                      // retroativos sao registros historicos read-only.
-                      editable={isDraft && ev.tipo === "criado"}
-                      // Quando o evento veio via escopo, autor passa a ser
-                      // "via escopo: X" em vez do vistoriador da vistoria —
-                      // foi outra pessoa que registrou, nao a engenharia.
-                      autor={vistoria.vistoriadorNome}
-                      escopoOrigemId={escopoOrigemId}
-                      escopoOrigemNome={ev.escopoOrigem?.nome ?? null}
-                      comentarios={threadComentarios.map((c) => ({
-                        id: c.id,
-                        autor: c.autor,
-                        texto: c.texto,
-                        createdAt: c.createdAt,
-                      }))}
-                      dateFmt={dateFmt}
-                      evento={{
-                        id: ev.id,
-                        tipo: ev.tipo,
-                        createdAt: ev.createdAt,
-                        notaExtra: ev.notaExtra,
-                        fotos: ev.fotos.map((f) => ({
-                          id: f.id,
-                          arquivoPath: f.arquivoPath,
-                          thumbPath: f.thumbPath,
-                          legenda: f.legenda,
-                        })),
-                      }}
-                    />
-                  );
-                })}
+                {g.eventos.map((ev) => (
+                  <NovoAchadoCard
+                    key={ev.id}
+                    vistoriaId={vistoria.id}
+                    achado={ev.achado!}
+                    editable={isDraft && ev.tipo === "criado"}
+                    autor={vistoria.vistoriadorNome}
+                    funcionarioOrigemId={ev.funcionarioOrigemId}
+                    funcionarioOrigemNome={ev.funcionarioOrigem?.nome ?? null}
+                    dateFmt={dateFmt}
+                    evento={{
+                      id: ev.id,
+                      tipo: ev.tipo,
+                      createdAt: ev.createdAt,
+                      notaExtra: ev.notaExtra,
+                      fotos: ev.fotos.map((f) => ({
+                        id: f.id,
+                        arquivoPath: f.arquivoPath,
+                        thumbPath: f.thumbPath,
+                        legenda: f.legenda,
+                      })),
+                    }}
+                  />
+                ))}
               </div>
             ))}
           </AchadosSortableList>
