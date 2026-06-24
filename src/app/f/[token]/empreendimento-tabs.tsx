@@ -1,7 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, ChevronRight, MapPin } from "lucide-react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronRight,
+  FileText,
+  MapPin,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AchadoCard, type AchadoCardData } from "./achado-card";
 
@@ -154,6 +160,17 @@ function EmpreendimentoDetail({
             total
           </p>
         </div>
+        {pendentesCount > 0 ? (
+          <a
+            href={`/api/pdf/funcionario/${token}?empreendimento=${grupo.empreendimentoId}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-[10px] tracking-[0.06em] uppercase text-foreground transition hover:bg-muted"
+          >
+            <FileText className="size-3.5" aria-hidden />
+            Baixar checklist
+          </a>
+        ) : null}
       </div>
 
       <div role="tablist" className="flex gap-1.5">
