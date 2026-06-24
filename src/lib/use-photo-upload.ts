@@ -5,13 +5,9 @@ import { toast } from "sonner";
 import { useUploadInFlight } from "./upload-in-flight";
 
 const CONCURRENCY = 3;
-// Cada attempt tem 60s — coloca um teto pra requests presas em rede ruim
-// (vistoria em obra com 3G), em vez de ficar pendurado pra sempre.
+// Teto pra request presa em rede ruim (3G de obra).
 const REQUEST_TIMEOUT_MS = 60_000;
 const MAX_ATTEMPTS = 3;
-// Backoff: 800ms, depois 2400ms (3x). Total no pior caso: 3 attempts +
-// 2 esperas = ~63s extras, dentro do tempo que o user esta disposto a
-// esperar antes de tentar de novo manualmente.
 const BACKOFF_MS = [800, 2400];
 
 type UploadOptions = {
@@ -31,10 +27,6 @@ type State = {
   done: number;
 };
 
-/**
- * Sobe N arquivos em paralelo (limite fixo), com toast unico de progresso
- * e cancelamento automatico ao desmontar.
- */
 export function usePhotoUpload({
   eventoId,
   uploadToken,
@@ -44,8 +36,7 @@ export function usePhotoUpload({
   const [state, setState] = useState<State>({ total: 0, done: 0 });
   const abortRef = useRef<AbortController | null>(null);
   const tracker = useUploadInFlight();
-  // Ref pro tracker pra evitar que mudanças do contexto (count++) invalidem
-  // o useCallback de upload e re-renderizem componentes no caminho crítico.
+  // Ref evita que count++ invalide o useCallback de upload.
   const trackerRef = useRef(tracker);
   useEffect(() => {
     trackerRef.current = tracker;
@@ -86,8 +77,6 @@ export function usePhotoUpload({
         for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
           if (controller.signal.aborted) return;
 
-          // Combina o controller geral (cancelamento por unmount) com um
-          // timeout por tentativa. Qualquer um aborta a request.
           const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
           const signal = AbortSignal.any([controller.signal, timeoutSignal]);
 
@@ -107,8 +96,7 @@ export function usePhotoUpload({
               return;
             }
 
-            // 4xx (exceto 408/429) sao erros do usuario/auth — nao tem
-            // sentido retry. 5xx + 408/429 sao transientes.
+            // 4xx (exceto 408/429) sao erro do usuario; nao retry.
             const isTransient =
               res.status >= 500 || res.status === 408 || res.status === 429;
             const data = (await res.json().catch(() => ({}))) as {
@@ -121,15 +109,11 @@ export function usePhotoUpload({
               toast.error(lastError);
               return;
             }
-            // segue pro retry com backoff
           } catch (err) {
             const error = err as Error;
-            // Cancelamento por unmount: silencioso, sem retry.
             if (error.name === "AbortError" && controller.signal.aborted) {
               return;
             }
-            // Timeout por tentativa OU erro de rede: ambos sao transientes
-            // — vale tentar de novo.
             lastError = `Falha de rede em ${file.name}`;
             if (attempt === MAX_ATTEMPTS - 1) {
               failed += 1;
@@ -138,7 +122,6 @@ export function usePhotoUpload({
             }
           }
 
-          // Backoff antes do proximo attempt — respeita aborts no meio.
           const delay = BACKOFF_MS[attempt] ?? BACKOFF_MS[BACKOFF_MS.length - 1];
           await new Promise<void>((resolve) => {
             const t = setTimeout(resolve, delay);

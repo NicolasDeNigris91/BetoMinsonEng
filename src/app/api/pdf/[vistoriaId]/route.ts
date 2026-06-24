@@ -33,9 +33,8 @@ async function isAuthorized(
 ): Promise<boolean> {
   if (await isLoggedIn()) return true;
   if (!token) return false;
-  // Token de upload (permiteUpload=true) e destinado ao celular do
-  // mestre-de-obras; nao deve servir como link de leitura do PDF inteiro
-  // pra cliente externo. Restringe a leitura do PDF a tokens de leitura.
+  // permiteUpload=true e pro celular do mestre-de-obras, nao pra
+  // cliente externo ler o PDF inteiro.
   const [row] = await db
     .select({ vistoriaId: shareTokens.vistoriaId })
     .from(shareTokens)
@@ -67,9 +66,8 @@ export async function GET(
   { params }: { params: Promise<{ vistoriaId: string }> },
 ) {
   const { vistoriaId } = await params;
-  // Sem isUuid antes do isAuthorized, o cast UUID no SELECT subjacente
-  // estoura "invalid input syntax" e devolve 500 — para qualquer caller
-  // anonimo, isso vaza que a rota existe. 404 explicito e mais limpo.
+  // Cast UUID no SELECT estoura 500 com id invalido — vaza que a rota
+  // existe. 404 explicito antes da query.
   if (!isUuid(vistoriaId)) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
@@ -88,7 +86,11 @@ export async function GET(
       .limit(1),
     db.query.achadoEventos.findMany({
       where: eq(achadoEventos.vistoriaId, vistoriaId),
-      with: { fotos: { orderBy: asc(fotos.ordem) }, achado: true },
+      with: {
+        fotos: { orderBy: asc(fotos.ordem) },
+        achado: true,
+        funcionarioOrigem: true,
+      },
       orderBy: asc(achadoEventos.createdAt),
     }),
   ]);
@@ -143,6 +145,7 @@ export async function GET(
             notaExtra: ev.notaExtra,
             fotos: fotosWithData,
           },
+          funcionarioOrigemNome: ev.funcionarioOrigem?.nome ?? null,
         };
       }),
   );
@@ -166,13 +169,9 @@ export async function GET(
       const buf = await readFile(brandPath);
       logoDataUri = `data:image/png;base64,${buf.toString("base64")}`;
     } catch {
-      // fallback to text rendering in the template if logo is unavailable
     }
   }
 
-  // Protocolo VST-AAAA-NNN: ranking da vistoria dentro do ano de criacao.
-  // Calculo determinístico — conta quantas vistorias foram criadas no mesmo
-  // ano ate (e incluindo) a vistoria atual. Cresce naturalmente.
   const year = vistoria.createdAt.getFullYear();
   const startOfYear = new Date(year, 0, 1);
   const [rankRow] = await db
@@ -208,9 +207,8 @@ export async function GET(
 
   const html = renderPdfHtml(data);
 
-  // Footer custom com identificacao em cada pagina: nome do empreendimento,
-  // unidade, data + paginacao + protocolo. Rendered pelo Chromium em
-  // <head>-less inline; estilos precisam ser todos inline ou em <style>.
+  // Chromium renderiza em <head>-less inline; estilos precisam ser
+  // todos inline ou em <style>.
   const footerTemplate = `
     <style>
       .pdf-footer-inner {
@@ -251,7 +249,7 @@ export async function GET(
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${filename}"`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "private, max-age=60",
       "X-Robots-Tag": "noindex, nofollow",
     },
   });

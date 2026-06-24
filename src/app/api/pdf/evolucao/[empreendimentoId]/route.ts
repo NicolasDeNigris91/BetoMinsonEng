@@ -120,7 +120,9 @@ export async function GET(
         lte(achadoEventos.createdAt, fimInclusive),
       ),
     )
-    .orderBy(asc(achadoEventos.createdAt));
+    .orderBy(asc(achadoEventos.createdAt))
+    // limit 20k: hard cap pra evitar OOM em historico longo.
+    .limit(20000);
 
   // Para cada achado resolvido, pega o evento 'criado' correspondente (sempre
   // existe — eh o evento na vistoria de origem). Pega tambem a primeira foto
@@ -356,7 +358,7 @@ export async function GET(
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${filename}"`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "private, max-age=60",
       "X-Robots-Tag": "noindex, nofollow",
     },
   });

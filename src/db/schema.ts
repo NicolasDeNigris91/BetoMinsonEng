@@ -41,11 +41,6 @@ export const eventoTipoEnum = pgEnum("evento_tipo", [
   "nota",
 ]);
 
-export const comentarioAutorEnum = pgEnum("comentario_autor", [
-  "profissional",
-  "engenharia",
-]);
-
 export const empreendimentos = pgTable("empreendimentos", {
   id: uuid("id").primaryKey().defaultRandom(),
   nome: varchar("nome", { length: 200 }).notNull(),
@@ -141,13 +136,8 @@ export const achadoEventos = pgTable(
       .references(() => vistorias.id, { onDelete: "cascade" }),
     tipo: eventoTipoEnum("tipo").notNull(),
     notaExtra: text("nota_extra"),
-    // Quando setado, este evento foi registrado via link publico do
-    // profissional de um escopo (ordem de servico), nao pela engenharia.
-    // Vai pra mesma vistoria do achado pra UI ficar coesa, mas a
-    // procedencia continua identificavel pra autor / chip visual / PDF.
-    // FK SET NULL: deletar o escopo nao apaga o evento ja registrado.
-    escopoOrigemId: uuid("escopo_origem_id").references(
-      (): AnyPgColumn => escopos.id,
+    funcionarioOrigemId: uuid("funcionario_origem_id").references(
+      (): AnyPgColumn => funcionarios.id,
       { onDelete: "set null" },
     ),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -157,10 +147,11 @@ export const achadoEventos = pgTable(
   (t) => [
     index("achado_eventos_achado_idx").on(t.achadoId),
     index("achado_eventos_vistoria_idx").on(t.vistoriaId),
-    index("achado_eventos_escopo_origem_idx").on(t.escopoOrigemId),
-    // Cada achado tem no maximo um evento por vistoria. Antes desta
-    // constraint, duplo-clique em "Persiste"/"Resolvido" criava dois
-    // eventos do mesmo tipo na mesma vistoria, sujando historico/PDF.
+    index("achado_eventos_funcionario_origem_idx").on(t.funcionarioOrigemId),
+    // ORDER BY created_at DESC LIMIT N e padrao em feeds; sem index vira
+    // sequential scan + sort.
+    index("achado_eventos_created_at_idx").on(t.createdAt),
+    // Sem essa constraint, duplo-clique criava eventos duplicados.
     uniqueIndex("achado_eventos_achado_vistoria_unique").on(
       t.achadoId,
       t.vistoriaId,
@@ -203,9 +194,7 @@ export const shareTokens = pgTable(
   (t) => [index("share_tokens_vistoria_idx").on(t.vistoriaId)],
 );
 
-// Buckets de rate limit. Substitui o Map em memoria do processo —
-// sobrevive a deploys/restarts e funciona em multi-replica. Cada (key)
-// vira uma linha; UPSERT atomico decide reset/increment.
+// Em DB (nao memoria) pra sobreviver a deploys e funcionar multi-replica.
 export const rateLimitBuckets = pgTable(
   "rate_limit_buckets",
   {
@@ -216,121 +205,84 @@ export const rateLimitBuckets = pgTable(
   (t) => [index("rate_limit_buckets_reset_idx").on(t.resetAt)],
 );
 
-// Escopos = ordens de servico. Agrupam achados de varias unidades do mesmo
-// empreendimento pra gerar um PDF que vai pro profissional que vai resolver
-// (ex: "Joao - Eletrica" pega 12 achados de eletrica espalhados por 3 aptos).
-// Achados nao sao "movidos" — sao referenciados via tabela de juncao.
-export const escopos = pgTable(
-  "escopos",
+export const funcionarios = pgTable(
+  "funcionarios",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    empreendimentoId: uuid("empreendimento_id")
-      .notNull()
-      .references(() => empreendimentos.id, { onDelete: "cascade" }),
     nome: varchar("nome", { length: 200 }).notNull(),
-    descricao: text("descricao"),
-    // Prazo combinado com o profissional pra entregar a OS. Independente do
-    // achados.prazoEm (que e prazo interno da engenharia). Aparece pro
-    // profissional no link dele e na home da engenharia.
-    prazoEm: date("prazo_em"),
-    createdAt: timestamp("created_at", { withTimezone: true })
+    token: varchar("token", { length: 128 }).notNull().unique(),
+    desativadoEm: timestamp("desativado_em", { withTimezone: true }),
+    criadoEm: timestamp("criado_em", { withTimezone: true })
       .defaultNow()
       .notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
+    atualizadoEm: timestamp("atualizado_em", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
-  (t) => [index("escopos_empreendimento_idx").on(t.empreendimentoId)],
+  (t) => [index("funcionarios_token_idx").on(t.token)],
 );
 
-// Juncao many-to-many. Um achado pode estar em N escopos (ex: serviço misto
-// que envolve eletrica e hidraulica entra nos escopos do Joao E do Pedro).
-// PK composta = nao tem duplicata do mesmo achado no mesmo escopo.
-export const escopoAchados = pgTable(
-  "escopo_achados",
+export const prioridadeEnum = pgEnum("funcionario_achado_prioridade", [
+  "alta",
+  "media",
+]);
+
+export const funcionarioAchados = pgTable(
+  "funcionario_achados",
   {
-    escopoId: uuid("escopo_id")
+    funcionarioId: uuid("funcionario_id")
       .notNull()
-      .references(() => escopos.id, { onDelete: "cascade" }),
+      .references(() => funcionarios.id, { onDelete: "cascade" }),
     achadoId: uuid("achado_id")
       .notNull()
       .references(() => achados.id, { onDelete: "cascade" }),
-    ordem: integer("ordem").notNull(),
-    adicionadoEm: timestamp("adicionado_em", { withTimezone: true })
+    atribuidoEm: timestamp("atribuido_em", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    prioridade: prioridadeEnum("prioridade"),
   },
   (t) => [
-    primaryKey({ columns: [t.escopoId, t.achadoId] }),
-    index("escopo_achados_achado_idx").on(t.achadoId),
+    primaryKey({ columns: [t.funcionarioId, t.achadoId] }),
+    index("funcionario_achados_achado_idx").on(t.achadoId),
   ],
 );
 
-// Link publico do profissional que executa o escopo. Analogo aos
-// share_tokens de vistoria, mas: aponta pra escopo (nao vistoria), nao
-// expira por tempo (so por revogacao manual) e o destinatario pode
-// MUTAR estado dos achados (marcar resolvido / persiste + foto + nota).
-// Decisao: tabela propria (em vez de estender share_tokens) pra nao
-// inflar a tabela atual com FKs nullable e diferenca semantica de
-// expiracao.
-export const escopoShareTokens = pgTable(
-  "escopo_share_tokens",
+export const mensagemAutorEnum = pgEnum("mensagem_autor", [
+  "funcionario",
+  "engenharia",
+]);
+
+export const mensagens = pgTable(
+  "mensagens",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    escopoId: uuid("escopo_id")
+    funcionarioId: uuid("funcionario_id")
       .notNull()
-      .references(() => escopos.id, { onDelete: "cascade" }),
-    token: varchar("token", { length: 64 }).notNull().unique(),
-    // null = ativo. Set = revogado pelo admin (preserva historico).
-    revogadoEm: timestamp("revogado_em", { withTimezone: true }),
+      .references(() => funcionarios.id, { onDelete: "cascade" }),
+    autor: mensagemAutorEnum("autor").notNull(),
+    texto: text("texto").notNull(),
+    achadoId: uuid("achado_id").references((): AnyPgColumn => achados.id, {
+      onDelete: "set null",
+    }),
+    lidoEm: timestamp("lido_em", { withTimezone: true }),
     criadoEm: timestamp("criado_em", { withTimezone: true })
       .defaultNow()
       .notNull(),
   },
-  (t) => [index("escopo_share_tokens_escopo_idx").on(t.escopoId)],
-);
-
-// Thread de comentarios entre engenharia e profissional sobre um achado,
-// no contexto de UM escopo. Como achado pode pertencer a varios escopos
-// (M:N), a chave logica do thread eh (achadoId, escopoId) — assim cada
-// profissional tem sua conversa isolada com a engenharia. Os comentarios
-// vivem em paralelo aos achadoEventos: eventos representam transicoes
-// de estado (persiste/resolvido); comentarios sao a conversa pra negociar
-// essas transicoes.
-export const achadoComentarios = pgTable(
-  "achado_comentarios",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    achadoId: uuid("achado_id")
-      .notNull()
-      .references(() => achados.id, { onDelete: "cascade" }),
-    escopoId: uuid("escopo_id")
-      .notNull()
-      .references(() => escopos.id, { onDelete: "cascade" }),
-    autor: comentarioAutorEnum("autor").notNull(),
-    texto: text("texto").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-  },
   (t) => [
-    index("achado_comentarios_achado_escopo_idx").on(
-      t.achadoId,
-      t.escopoId,
-      t.createdAt,
+    index("mensagens_funcionario_idx").on(t.funcionarioId, t.criadoEm),
+    // Drizzle nao expoe partial index; composto basico cobre o filtro
+    // WHERE autor='funcionario' AND lido_em IS NULL.
+    index("mensagens_funcionario_lido_idx").on(
+      t.funcionarioId,
+      t.lidoEm,
     ),
+    index("mensagens_achado_idx").on(t.achadoId),
   ],
 );
 
-// Preparacao para migrar do APP_PASSWORD compartilhado pra usuarios
-// por pessoa. Tabela existe; auth ainda nao foi cabeada nela.
-//
-// Quando ativar:
-// 1. Adicionar bcrypt/argon2 como dep
-// 2. Trocar passwordMatches() em lib/auth.ts pra buscar por email + hash
-// 3. Adicionar coluna criado_por_usuario_id em vistorias/achados/fotos
-//    pra audit trail real (migration separada)
-// 4. Criar usuario 'sistema' e backfill dados antigos
+// TODO: auth ainda usa APP_PASSWORD compartilhado; tabela existe pra
+// preparar migracao pra usuarios por pessoa.
 export const usuarios = pgTable(
   "usuarios",
   {
@@ -388,22 +340,7 @@ export const achadosRelations = relations(achados, ({ one, many }) => ({
     relationName: "achado_resolvido",
   }),
   eventos: many(achadoEventos),
-  comentarios: many(achadoComentarios),
 }));
-
-export const achadoComentariosRelations = relations(
-  achadoComentarios,
-  ({ one }) => ({
-    achado: one(achados, {
-      fields: [achadoComentarios.achadoId],
-      references: [achados.id],
-    }),
-    escopo: one(escopos, {
-      fields: [achadoComentarios.escopoId],
-      references: [escopos.id],
-    }),
-  }),
-);
 
 export const achadoEventosRelations = relations(
   achadoEventos,
@@ -416,10 +353,10 @@ export const achadoEventosRelations = relations(
       fields: [achadoEventos.vistoriaId],
       references: [vistorias.id],
     }),
-    escopoOrigem: one(escopos, {
-      fields: [achadoEventos.escopoOrigemId],
-      references: [escopos.id],
-      relationName: "evento_origem_escopo",
+    funcionarioOrigem: one(funcionarios, {
+      fields: [achadoEventos.funcionarioOrigemId],
+      references: [funcionarios.id],
+      relationName: "evento_origem_funcionario",
     }),
     fotos: many(fotos),
   }),
@@ -439,32 +376,28 @@ export const shareTokensRelations = relations(shareTokens, ({ one }) => ({
   }),
 }));
 
-export const escoposRelations = relations(escopos, ({ one, many }) => ({
-  empreendimento: one(empreendimentos, {
-    fields: [escopos.empreendimentoId],
-    references: [empreendimentos.id],
-  }),
-  itens: many(escopoAchados),
-  shareTokens: many(escopoShareTokens),
+export const funcionariosRelations = relations(funcionarios, ({ many }) => ({
+  achados: many(funcionarioAchados),
+  mensagens: many(mensagens),
 }));
 
-export const escopoAchadosRelations = relations(escopoAchados, ({ one }) => ({
-  escopo: one(escopos, {
-    fields: [escopoAchados.escopoId],
-    references: [escopos.id],
-  }),
-  achado: one(achados, {
-    fields: [escopoAchados.achadoId],
-    references: [achados.id],
+export const mensagensRelations = relations(mensagens, ({ one }) => ({
+  funcionario: one(funcionarios, {
+    fields: [mensagens.funcionarioId],
+    references: [funcionarios.id],
   }),
 }));
 
-export const escopoShareTokensRelations = relations(
-  escopoShareTokens,
+export const funcionarioAchadosRelations = relations(
+  funcionarioAchados,
   ({ one }) => ({
-    escopo: one(escopos, {
-      fields: [escopoShareTokens.escopoId],
-      references: [escopos.id],
+    funcionario: one(funcionarios, {
+      fields: [funcionarioAchados.funcionarioId],
+      references: [funcionarios.id],
+    }),
+    achado: one(achados, {
+      fields: [funcionarioAchados.achadoId],
+      references: [achados.id],
     }),
   }),
 );
@@ -482,20 +415,19 @@ export type NovoAchadoEvento = typeof achadoEventos.$inferInsert;
 export type Foto = typeof fotos.$inferSelect;
 export type NovaFoto = typeof fotos.$inferInsert;
 export type ShareToken = typeof shareTokens.$inferSelect;
-export type Escopo = typeof escopos.$inferSelect;
-export type NovoEscopo = typeof escopos.$inferInsert;
-export type EscopoAchado = typeof escopoAchados.$inferSelect;
-export type EscopoShareToken = typeof escopoShareTokens.$inferSelect;
-export type NovoEscopoShareToken = typeof escopoShareTokens.$inferInsert;
 
-export type AchadoComentario = typeof achadoComentarios.$inferSelect;
-export type NovoAchadoComentario = typeof achadoComentarios.$inferInsert;
+export type Funcionario = typeof funcionarios.$inferSelect;
+export type NovoFuncionario = typeof funcionarios.$inferInsert;
+export type FuncionarioAchado = typeof funcionarioAchados.$inferSelect;
+export type NovoFuncionarioAchado = typeof funcionarioAchados.$inferInsert;
+export type Mensagem = typeof mensagens.$inferSelect;
+export type NovaMensagem = typeof mensagens.$inferInsert;
+export type MensagemAutor = (typeof mensagemAutorEnum.enumValues)[number];
 
 export type Categoria = (typeof categoriaEnum.enumValues)[number];
 export type VistoriaStatus = (typeof vistoriaStatusEnum.enumValues)[number];
 export type AchadoStatus = (typeof achadoStatusEnum.enumValues)[number];
 export type EventoTipo = (typeof eventoTipoEnum.enumValues)[number];
-export type ComentarioAutor = (typeof comentarioAutorEnum.enumValues)[number];
 
 export const CATEGORIA_LABELS: Record<Categoria, string> = {
   ELE: "Elétrica",

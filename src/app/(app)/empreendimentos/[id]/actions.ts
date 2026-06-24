@@ -129,7 +129,21 @@ export async function deleteUnidadeAction(unidadeId: string): Promise<void> {
     .where(eq(unidades.id, unidadeId))
     .returning({ empreendimentoId: unidades.empreendimentoId });
 
-  await deleteFotosFromStorage(fotosToCleanup);
+  // Storage cleanup best-effort: ordem inversa (storage primeiro)
+  // criaria 404 visivel se a transacao DB falhar depois. Lixo no disco
+  // e preferivel — GC posterior pode varrer.
+  try {
+    await deleteFotosFromStorage(fotosToCleanup);
+  } catch (err) {
+    console.error(
+      "[deleteUnidadeAction] storage cleanup failed for unidade",
+      unidadeId,
+      "with",
+      fotosToCleanup.length,
+      "fotos. Files may be orphaned on disk.",
+      err,
+    );
+  }
 
   if (deleted) {
     revalidatePath(`/empreendimentos/${deleted.empreendimentoId}`);

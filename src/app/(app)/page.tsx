@@ -1,19 +1,14 @@
 import Link from "next/link";
-import { Building2, ClipboardList, HardHat } from "lucide-react";
+import { Building2, ClipboardList } from "lucide-react";
 import { PrazoBadge } from "@/components/prazo-badge";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CATEGORIA_LABELS } from "@/db/schema";
-import {
-  CATEGORIA_BADGE_CLASS,
-  CATEGORIA_DOT,
-} from "@/lib/category-styles";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { CATEGORIA_DOT } from "@/lib/category-styles";
+import { formatDate } from "@/lib/format";
 import { getDateFormat } from "@/lib/date-format-server";
 import { cn } from "@/lib/utils";
 import { getDashboardData } from "./dashboard-data";
 import { DashboardAtividade } from "./dashboard-activity";
-import { DashboardOrdens } from "./dashboard-ordens";
 import { DashboardPrazoBanner } from "./dashboard-prazo-banner";
 
 // force-dynamic intencional: a pagina passa por requireSession (cookie),
@@ -45,9 +40,6 @@ export default async function HomePage() {
     atividadeTotal,
     semana,
     proximaVistoria,
-    totalOrdensAtivas,
-    ordensEmAndamento,
-    persistenciasPendentes,
   } = await getDashboardData(seteDiasAtrasISO);
 
   // Sugestao de proxima acao — regra simples por prioridade:
@@ -100,26 +92,10 @@ export default async function HomePage() {
             </span>{" "}
             {totalUnid === 1 ? "unidade" : "unidades"}
           </span>
-          {totalOrdensAtivas > 0 ? (
-            <span>
-              <span className="tabular-nums font-bold text-foreground">
-                {String(totalOrdensAtivas).padStart(2, "0")}
-              </span>{" "}
-              {totalOrdensAtivas === 1 ? "ordem ativa" : "ordens ativas"}
-            </span>
-          ) : null}
         </div>
       </div>
 
-      {/* Info-bar densa: 4 indicadores fixos + "Ordens ativas" quando ha
-          escopos com link aberto. Grid responsiva ajusta de 4 pra 5
-          colunas conforme a presenca da quinta celula. */}
-      <div
-        className={cn(
-          "grid grid-cols-2 divide-x divide-y rounded-lg border bg-card md:divide-y-0",
-          totalOrdensAtivas > 0 ? "md:grid-cols-5" : "md:grid-cols-4",
-        )}
-      >
+      <div className="grid grid-cols-2 divide-x divide-y rounded-lg border bg-card md:grid-cols-4 md:divide-y-0">
         <InfoCell
           label="Em aberto"
           value={totalAbertos}
@@ -163,14 +139,6 @@ export default async function HomePage() {
           }
           subClass={deltaVistorias > 0 ? "text-emerald-700 dark:text-emerald-300" : undefined}
         />
-        {totalOrdensAtivas > 0 ? (
-          <InfoCell
-            label="Ordens ativas"
-            value={totalOrdensAtivas}
-            valueClass="text-brand"
-            sub={`${ordensEmAndamento.length} escopo${ordensEmAndamento.length === 1 ? "" : "s"} com link`}
-          />
-        ) : null}
       </div>
 
       {/* Proxima acao sugerida — destaque com border-left brand. Omite quando
@@ -195,74 +163,6 @@ export default async function HomePage() {
             ) : null}
           </p>
         </div>
-      ) : null}
-
-      {/* Persistencias marcadas pelos profissionais (via link de escopo) que
-          ainda nao foram resolvidas pela engenharia. Lista resumida — limite
-          de 3 inline, o resto fica visivel no escopo correspondente. */}
-      {persistenciasPendentes.length > 0 ? (
-        <details className="group rounded-lg border border-l-4 border-l-amber-500 bg-amber-50/60 dark:bg-amber-900/10">
-          <summary className="cursor-pointer list-none px-4 py-3 marker:hidden flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-amber-800 dark:text-amber-300">
-                Persistências de profissionais · requer decisão
-              </p>
-              <p className="mt-1 text-sm">
-                <span className="font-semibold">
-                  {persistenciasPendentes.length}{" "}
-                  {persistenciasPendentes.length === 1 ? "item" : "itens"}
-                </span>{" "}
-                marcado{persistenciasPendentes.length === 1 ? "" : "s"} como
-                persiste pelos profissionais aguardam ação da engenharia.
-              </p>
-            </div>
-            <span className="font-mono text-[10px] tracking-[0.14em] uppercase text-amber-800 group-open:rotate-90 transition-transform">
-              ver detalhes →
-            </span>
-          </summary>
-          <ul className="divide-y divide-amber-200/70 border-t border-amber-200/70">
-            {persistenciasPendentes.map((p) => (
-              <li key={p.achadoId}>
-                <Link
-                  href={`/empreendimentos/${p.empreendimentoId}/escopos/${p.escopoId}`}
-                  className="block px-4 py-3 hover:bg-amber-100/40"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "font-mono text-[10px]",
-                        CATEGORIA_BADGE_CLASS[p.categoria],
-                      )}
-                    >
-                      {CATEGORIA_LABELS[p.categoria]}
-                    </Badge>
-                    {p.local ? (
-                      <span className="text-sm font-medium">{p.local}</span>
-                    ) : null}
-                    <span className="font-mono text-[10px] tracking-[0.06em] text-muted-foreground">
-                      {p.empreendimentoNome} · {p.unidadeNome}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm">{p.descricao}</p>
-                  {p.notaExtra ? (
-                    <p className="mt-1 border-l-2 border-amber-400 pl-3 text-sm italic text-amber-900 dark:text-amber-200">
-                      “{p.notaExtra}”
-                    </p>
-                  ) : null}
-                  <p className="mt-1 font-mono text-[10px] tracking-[0.04em] text-muted-foreground">
-                    <HardHat className="inline-block size-3 mr-1 text-brand" />
-                    via escopo{" "}
-                    <span className="font-semibold text-foreground">
-                      {p.escopoNome}
-                    </span>{" "}
-                    · marcado em {formatDateTime(p.marcadoEm, dateFmt)}
-                  </p>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </details>
       ) : null}
 
       {/* Agenda da semana — 7 celulas compactas com contagem de vistorias por dia. */}
@@ -404,27 +304,6 @@ export default async function HomePage() {
           <DashboardAtividade items={atividade} />
         </section>
       </div>
-
-      {/* Ordens de servico em andamento — escopos com link ativo,
-          agregados (resolvidos/persiste/pendente + ultima acao). Lista
-          compacta com scroll interno pra escalar sem empurrar o resto. */}
-      {ordensEmAndamento.length > 0 ? (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[12px] font-semibold tracking-[0.04em] uppercase text-foreground/80">
-              <HardHat className="inline-block size-3.5 mr-1 text-brand" />
-              Ordens de serviço em andamento
-            </h2>
-            <span className="font-mono text-[10px] tracking-[0.06em] uppercase text-muted-foreground">
-              <span className="tabular-nums text-foreground">
-                {String(ordensEmAndamento.length).padStart(2, "0")}
-              </span>{" "}
-              {ordensEmAndamento.length === 1 ? "ordem ativa" : "ordens ativas"}
-            </span>
-          </div>
-          <DashboardOrdens ordens={ordensEmAndamento} />
-        </section>
-      ) : null}
 
       {totalEmp === 0 ? (
         <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center">

@@ -34,7 +34,6 @@ type Props = {
   pendencias: PendenciaView[];
 };
 
-/** Formata Date pra value de <input type="datetime-local"> (YYYY-MM-DDTHH:MM). */
 function toDatetimeLocal(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -44,12 +43,8 @@ const UPLOAD_TIMEOUT_MS = 60_000;
 const UPLOAD_MAX_ATTEMPTS = 3;
 const UPLOAD_BACKOFF_MS = [800, 2400];
 
-/**
- * Upload de comprovacao com timeout + retry exponencial. Pequena duplicacao
- * vs use-photo-upload (esse hook recebe eventoId no construtor; aqui o
- * eventoId so existe DEPOIS do resolveAction). Mantem mesma robustez de
- * rede pra evitar perda silenciosa de foto durante vistoria.
- */
+// Duplicado vs use-photo-upload porque aqui o eventoId so existe depois
+// do resolveAction (use-photo-upload recebe no construtor).
 async function uploadWithRetry(eventoId: string, file: File): Promise<boolean> {
   for (let attempt = 0; attempt < UPLOAD_MAX_ATTEMPTS; attempt++) {
     const fd = new FormData();
@@ -84,26 +79,17 @@ async function uploadWithRetry(eventoId: string, file: File): Promise<boolean> {
   return false;
 }
 
-/** Formata Date pra exibicao "DD/MM/YYYY HH:MM". */
 function formatBR(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/**
- * Dialog "Resolver pendencias" — disparado do header da pagina da unidade.
- * Permite, por achado: ajustar a data/hora da resolucao e anexar uma foto
- * de comprovacao (opcional). Cada marcacao grava um evento "resolvido"
- * na vistoria de origem do achado, sem criar vistoria nova.
- */
 export function ResolverPendenciasDialog({ trigger, pendencias }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Defere o refresh pra quando o dialog fechar — caso contrario, cada
-  // marcacao removeria a linha da lista (o achado deixa de ser pendencia)
-  // e o usuario perderia o feedback "Resolvido em [data]" da linha.
+  // Refresh defere ate fechar pra nao remover linhas durante a interacao.
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
     if (!next && hasChanges) {
@@ -169,15 +155,10 @@ function PendenciaRow({
           parsed.toISOString(),
         );
 
-        // Upload da foto (se houver). Resolver pendencia geralmente
-        // acontece no escritorio (rede boa) mas pode rodar mobile durante
-        // a vistoria de volta — timeout + 2 retries pra absorver glitch
-        // de rede sem perder a comprovacao.
         if (file && eventoId) {
           const ok = await uploadWithRetry(eventoId, file);
           if (ok) setHasFoto(true);
-          // Se falhou, o evento ja foi criado: continua marcando como
-          // resolvido. O toast de erro ja foi emitido por uploadWithRetry.
+          // Upload falhou: evento ja foi criado, mantem resolvido marcado.
         }
 
         setResolved(true);

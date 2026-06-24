@@ -21,6 +21,7 @@ export type PdfRow = {
     notaExtra: string | null;
     fotos: PdfFoto[];
   };
+  funcionarioOrigemNome?: string | null;
 };
 
 export type PdfData = {
@@ -35,17 +36,12 @@ export type PdfData = {
   finalizadaEmBR: string | null;
   geradoEmBR: string;
   logoDataUri: string | null;
-  /** Codigo de protocolo gerado VST-AAAA-NNN. Exibido no header e footer. */
   protocolo: string;
-  /** Vistoria ainda em rascunho — exibe watermark "RASCUNHO" no fundo
-   *  de cada pagina pra evitar envio acidental. */
   isRascunho: boolean;
 };
 
 const BRAND_TEXT = "DiMinson Engenharia";
 
-// Ordem das materias na renderizacao — mantida fixa pra que o PDF saia
-// consistente entre vistorias.
 const ORDEM_CATEGORIA: Categoria[] = [
   "ELE",
   "HID",
@@ -99,10 +95,6 @@ function eventoBadge(tipo: EventoTipo): { label: string; border: string; text: s
   }
 }
 
-/**
- * Renderiza um achado. `numero` e o indice global dentro do PDF
- * (01, 02, ...), independente de matéria — facilita referência.
- */
 function renderAchado(
   row: PdfRow,
   numero: number,
@@ -130,8 +122,6 @@ function renderAchado(
     ? `<p class="nota-extra"><em>Atualização:</em> ${escapeHtml(row.evento.notaExtra)}</p>`
     : "";
 
-  // Quantidade de fotos define a largura do thumbnail. Evita 1 foto gigante
-  // (sobra de espaco a direita) e duas fotos so na esquerda (sobra parecida).
   const fotosClass =
     nFotos === 1
       ? "fotos-grid qtd-1"
@@ -150,9 +140,13 @@ function renderAchado(
         .join("")}</div>`
     : "";
 
-  // Audit line densa: "DD/MM/YYYY HH:MM · Fulano · N fotos"
-  const autorPart = vistoriadorNome
-    ? ` <span class="sep">·</span> <span class="autor">${escapeHtml(vistoriadorNome)}</span>`
+  const autorLabel = row.funcionarioOrigemNome
+    ? `via funcionário: ${escapeHtml(row.funcionarioOrigemNome)}`
+    : vistoriadorNome
+      ? escapeHtml(vistoriadorNome)
+      : null;
+  const autorPart = autorLabel
+    ? ` <span class="sep">·</span> <span class="autor">${autorLabel}</span>`
     : "";
   const fotosBadge =
     nFotos > 0
@@ -170,11 +164,6 @@ function renderAchado(
   </li>`;
 }
 
-/**
- * Agrupa as rows por categoria preservando ORDEM_CATEGORIA. Achados dentro
- * de cada matéria saem na ordem que vieram (a rota ja ordena por
- * categoria + createdAt).
- */
 function groupByCategoria(rows: PdfRow[]): { categoria: Categoria; rows: PdfRow[] }[] {
   const map = new Map<Categoria, PdfRow[]>();
   for (const row of rows) {
@@ -200,8 +189,6 @@ export function renderPdfHtml(data: PdfData): string {
     ? `<img src="${escapeAttr(data.logoDataUri)}" alt="Logo" class="logo-img" />`
     : `<span class="brand-text">${BRAND_TEXT}</span>`;
 
-  // Numera os achados sequencialmente DENTRO do PDF (01..N).
-  // Numeracao e global, nao por matéria — fica mais facil de referenciar.
   let counter = 0;
   const grupos = groupByCategoria(data.rows);
   const gruposHtml = grupos

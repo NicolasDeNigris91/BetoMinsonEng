@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { getDateFormat } from "@/lib/date-format-server";
+import { fetchMensagensNaoLidas } from "@/lib/mensagens-count";
 import { CommandPalette } from "@/components/command-palette";
 import { ShortcutPanel } from "@/components/shortcut-panel";
 import { DateFormatToggle } from "./date-format-toggle";
@@ -14,7 +15,10 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   await requireSession();
-  const dateFormat = await getDateFormat();
+  const [dateFormat, mensagensNaoLidas] = await Promise.all([
+    getDateFormat(),
+    fetchMensagensNaoLidas(),
+  ]);
 
   return (
     <div className="bp-grid flex min-h-screen flex-col">
@@ -41,6 +45,20 @@ export default async function AppLayout({
               className="text-muted-foreground hover:text-brand transition-colors"
             >
               Empreendimentos
+            </Link>
+            <Link
+              href="/funcionarios"
+              className="relative text-muted-foreground hover:text-brand transition-colors"
+            >
+              Funcionários
+              {mensagensNaoLidas > 0 ? (
+                <span
+                  className="absolute -top-2 -right-3 rounded-full bg-primary px-1.5 py-0.5 font-mono text-[10px] font-bold leading-none tabular-nums text-primary-foreground"
+                  aria-label={`${mensagensNaoLidas} mensagens não lidas`}
+                >
+                  {mensagensNaoLidas > 99 ? "99+" : mensagensNaoLidas}
+                </span>
+              ) : null}
             </Link>
             <DateFormatToggle current={dateFormat} />
             <LogoutButton />

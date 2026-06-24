@@ -3,9 +3,9 @@ import { eq, and, gt, or, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   achadoEventos,
-  escopoAchados,
-  escopoShareTokens,
   fotos,
+  funcionarioAchados,
+  funcionarios,
   shareTokens,
 } from "@/db/schema";
 import { isLoggedIn } from "@/lib/auth";
@@ -51,28 +51,16 @@ async function isAccessibleViaToken(
   return !!row;
 }
 
-/**
- * Token de escopo (link do profissional) libera fotos de duas origens:
- *  1. Fotos de eventos registrados POR esse escopo
- *     (achadoEventos.escopoOrigemId === escopo do token) — fotos da
- *     execucao do servico.
- *  2. Fotos dos eventos "criado" dos achados que estao em escopoAchados
- *     do token — contexto visual do problema que o profissional precisa
- *     resolver.
- *
- * Fotos de eventos de outras origens (admin, outro escopo) ficam fora.
- */
-async function isAccessibleViaEscopoToken(
+async function isAccessibleViaFuncionarioToken(
   relativePath: string,
   token: string,
 ): Promise<boolean> {
-  // Caso 1: fotos da execucao do proprio escopo.
   const [execRow] = await db
-    .select({ tokenId: escopoShareTokens.id })
-    .from(escopoShareTokens)
+    .select({ id: funcionarios.id })
+    .from(funcionarios)
     .innerJoin(
       achadoEventos,
-      eq(achadoEventos.escopoOrigemId, escopoShareTokens.escopoId),
+      eq(achadoEventos.funcionarioOrigemId, funcionarios.id),
     )
     .innerJoin(
       fotos,
@@ -86,26 +74,25 @@ async function isAccessibleViaEscopoToken(
     )
     .where(
       and(
-        eq(escopoShareTokens.token, token),
-        isNull(escopoShareTokens.revogadoEm),
+        eq(funcionarios.token, token),
+        isNull(funcionarios.desativadoEm),
       ),
     )
     .limit(1);
 
   if (execRow) return true;
 
-  // Caso 2: foto do evento 'criado' de um achado do escopo (contexto).
   const [contextoRow] = await db
-    .select({ tokenId: escopoShareTokens.id })
-    .from(escopoShareTokens)
+    .select({ id: funcionarios.id })
+    .from(funcionarios)
     .innerJoin(
-      escopoAchados,
-      eq(escopoAchados.escopoId, escopoShareTokens.escopoId),
+      funcionarioAchados,
+      eq(funcionarioAchados.funcionarioId, funcionarios.id),
     )
     .innerJoin(
       achadoEventos,
       and(
-        eq(achadoEventos.achadoId, escopoAchados.achadoId),
+        eq(achadoEventos.achadoId, funcionarioAchados.achadoId),
         eq(achadoEventos.tipo, "criado"),
       ),
     )
@@ -121,8 +108,8 @@ async function isAccessibleViaEscopoToken(
     )
     .where(
       and(
-        eq(escopoShareTokens.token, token),
-        isNull(escopoShareTokens.revogadoEm),
+        eq(funcionarios.token, token),
+        isNull(funcionarios.desativadoEm),
       ),
     )
     .limit(1);
@@ -144,7 +131,7 @@ export async function GET(
     (await isLoggedIn()) ||
     (token
       ? (await isAccessibleViaToken(relativePath, token)) ||
-        (await isAccessibleViaEscopoToken(relativePath, token))
+        (await isAccessibleViaFuncionarioToken(relativePath, token))
       : false);
 
   if (!allowed) {

@@ -13,8 +13,7 @@ async function getBrowser(): Promise<Browser> {
     headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
-  // Se o Chromium morrer (OOM, crash), zera o global pra proxima chamada
-  // relançar em vez de tentar usar um handle morto.
+  // Zera o handle se o Chromium morrer (OOM, crash).
   browser.on("disconnected", () => {
     if (globalThis.__pwBrowser === browser) {
       globalThis.__pwBrowser = null;
@@ -31,15 +30,10 @@ export async function closeBrowser(): Promise<void> {
   try {
     await current.close();
   } catch {
-    // browser ja desconectado/morto — nada a fazer
   }
 }
 
 export type RenderPdfOptions = {
-  /** HTML do template de footer rodado em cada pagina pela engine do
-   *  Chromium. Tem acesso a <span class="pageNumber"></span> e <span
-   *  class="totalPages"></span> pra numeracao automatica. Default exibe
-   *  apenas "Pagina X de Y". */
   footerTemplate?: string;
 };
 
@@ -55,13 +49,8 @@ export async function renderHtmlToPdf(
   const browser = await getBrowser();
   const context = await browser.newContext({ viewport: { width: 794, height: 1123 } });
   const page = await context.newPage();
-  // Defense-in-depth contra SSRF: o template do PDF e renderizado pelo
-  // Chromium do servidor, que tem acesso a rede interna (metadata IMDS,
-  // services internos, etc). Hoje o conteudo e escapado e nao injeta
-  // requests externas — mas se algum dia um campo de texto deixar de
-  // escapar `<img src=...>`, o Chromium baixaria. Bloqueia tudo que nao
-  // for data:, about: ou Google Fonts (esse e o unico recurso externo
-  // intencional, importado pelo CSS dos templates).
+  // SSRF defense: Chromium server-side tem acesso a rede interna (IMDS).
+  // Bloqueia tudo exceto data:, about: e Google Fonts.
   await page.route("**/*", (route) => {
     const url = route.request().url();
     if (

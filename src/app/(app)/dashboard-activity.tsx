@@ -3,10 +3,9 @@ import {
   CheckCircle2,
   ClipboardCheck,
   ClipboardList,
-  HardHat,
   ImageIcon,
-  PartyPopper,
   PlusCircle,
+  UserCircle2,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -110,40 +109,6 @@ function ActivityRow({ item }: { item: DashboardActivity }) {
     );
   }
 
-  if (item.kind === "ordem-concluida") {
-    return (
-      <Link
-        href={`/empreendimentos/${item.empreendimentoId}/escopos/${item.escopoId}`}
-        className="flex items-start gap-3 px-3 py-2.5 transition-colors hover:bg-accent/40 border-l-2 border-l-brand bg-brand/[0.04]"
-      >
-        <IconBubble
-          icon={PartyPopper}
-          className="bg-brand/15 text-brand"
-        />
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <p className="text-sm leading-tight">
-            <span className="text-foreground/85">Ordem concluida</span> ·{" "}
-            <strong className="font-semibold text-foreground">
-              {item.escopoNome}
-            </strong>
-          </p>
-          <p className="flex flex-wrap items-center gap-x-2 font-mono text-[10px] tracking-[0.04em] text-muted-foreground/70">
-            <span>{item.empreendimentoNome}</span>
-            <span>·</span>
-            <span>
-              {item.totalAchados}{" "}
-              {item.totalAchados === 1 ? "achado" : "achados"} ·{" "}
-              {item.nUnidades}{" "}
-              {item.nUnidades === 1 ? "unidade" : "unidades"}
-            </span>
-            <span>·</span>
-            <span>{relativeTime(item.at)}</span>
-          </p>
-        </div>
-      </Link>
-    );
-  }
-
   if (item.kind === "vistoria-finalizada") {
     return (
       <Link
@@ -173,18 +138,18 @@ function ActivityRow({ item }: { item: DashboardActivity }) {
   const Icon = item.tipo === "resolvido" ? CheckCircle2 : EVENTO_ICON[item.tipo];
   const iconCls = EVENTO_ICON_BG[item.tipo];
   const verbo = EVENTO_VERBO[item.tipo];
-  const viaEscopo = Boolean(item.escopoOrigemId);
+  const viaFuncionario = Boolean(item.funcionarioOrigemId);
 
   return (
     <Link
       href={
-        viaEscopo
-          ? `/empreendimentos/${item.empreendimentoId}/escopos/${item.escopoOrigemId}`
+        viaFuncionario
+          ? `/funcionarios/${item.funcionarioOrigemId}`
           : `/empreendimentos/${item.empreendimentoId}/unidades/${item.unidadeId}`
       }
       className={cn(
         "flex items-start gap-3 px-3 py-2.5 transition-colors hover:bg-accent/40",
-        viaEscopo && "border-l-2 border-l-brand bg-brand/[0.04]",
+        viaFuncionario && "border-l-2 border-l-sky-500 bg-sky-500/[0.04]",
       )}
     >
       <IconBubble icon={Icon} className={iconCls} />
@@ -241,12 +206,12 @@ function ActivityRow({ item }: { item: DashboardActivity }) {
               </span>
             </>
           ) : null}
-          {viaEscopo && item.escopoOrigemNome ? (
+          {viaFuncionario && item.funcionarioOrigemNome ? (
             <>
               <span>·</span>
-              <span className="inline-flex items-center gap-1 text-brand">
-                <HardHat className="size-3" aria-hidden />
-                via escopo: {item.escopoOrigemNome}
+              <span className="inline-flex items-center gap-1 text-sky-700 dark:text-sky-400">
+                <UserCircle2 className="size-3" aria-hidden />
+                via funcionário: {item.funcionarioOrigemNome}
               </span>
             </>
           ) : null}

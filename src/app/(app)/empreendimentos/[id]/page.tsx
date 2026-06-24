@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, asc, count, sql } from "drizzle-orm";
-import { ClipboardList, FileText, Plus, StickyNote } from "lucide-react";
+import { FileText, Plus, StickyNote } from "lucide-react";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { db } from "@/db";
@@ -145,17 +145,6 @@ export default async function EmpreendimentoDetailPage({
           </dl>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            title="Ordens de serviço pra profissionais"
-            render={
-              <Link href={`/empreendimentos/${emp.id}/escopos`} />
-            }
-          >
-            <ClipboardList className="mr-1.5 size-4" />
-            Escopos
-          </Button>
           <Button
             variant="outline"
             size="sm"
