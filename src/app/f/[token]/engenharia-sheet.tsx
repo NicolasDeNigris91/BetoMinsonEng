@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import { MessageCircle, Send, X } from "lucide-react";
 import { toast } from "sonner";
@@ -29,6 +35,10 @@ export function EngenhariaSheet({ token, naoLidasIniciais }: Props) {
   const { open, achadoRef, openSheetWith, closeSheet, clearAchadoRef } =
     useEngenharia();
   const [mensagens, setMensagens] = useState<ThreadMessage[]>([]);
+  const [optimisticMensagens, addOptimisticMensagem] = useOptimistic<
+    ThreadMessage[],
+    ThreadMessage
+  >(mensagens, (current, msg) => [...current, msg]);
   const [loading, setLoading] = useState(false);
   const [texto, setTexto] = useState("");
   const [sending, startSend] = useTransition();
@@ -70,13 +80,38 @@ export function EngenhariaSheet({ token, naoLidasIniciais }: Props) {
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [mensagens]);
+  }, [optimisticMensagens]);
 
   const enviar = () => {
     const trimmed = texto.trim();
     if (!trimmed) return;
     const refId = achadoRef?.id;
+    const refSnapshot = achadoRef;
+
     startSend(async () => {
+      const optimisticMsg: ThreadMessage = {
+        id: `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        autor: "funcionario",
+        texto: trimmed,
+        criadoEm: new Date().toISOString(),
+        lidoEm: null,
+        achadoRef: refSnapshot
+          ? {
+              id: refSnapshot.id,
+              local: refSnapshot.local,
+              descricao: refSnapshot.descricao,
+              categoria: refSnapshot.categoria,
+              empreendimentoId: "",
+              empreendimentoNome: "",
+              unidadeId: "",
+              unidadeNome: "",
+            }
+          : null,
+      };
+      addOptimisticMensagem(optimisticMsg);
+      setTexto("");
+      if (refSnapshot) clearAchadoRef();
+
       try {
         const result = await enviarMensagemFuncionarioAction(
           token,
@@ -85,16 +120,16 @@ export function EngenhariaSheet({ token, naoLidasIniciais }: Props) {
         );
         if (result?.error) {
           toast.error(result.error);
+          setTexto(trimmed);
           return;
         }
-        setTexto("");
-        clearAchadoRef();
         const re = await fetchThreadByTokenAction(token);
         if (!("error" in re)) setMensagens(re.data);
         router.refresh();
       } catch (err) {
         if (isNextRedirectError(err)) throw err;
         toast.error("Erro ao enviar. Tente novamente.");
+        setTexto(trimmed);
       }
     });
   };
@@ -152,14 +187,14 @@ export function EngenhariaSheet({ token, naoLidasIniciais }: Props) {
                 <p className="text-center text-[11px] text-muted-foreground py-8">
                   Carregando…
                 </p>
-              ) : mensagens.length === 0 ? (
+              ) : optimisticMensagens.length === 0 ? (
                 <p className="text-center text-[11px] text-muted-foreground py-8">
                   Nenhuma mensagem ainda. Mande a primeira pra engenharia.
                 </p>
               ) : (
-                mensagens.map((m, i) => {
+                optimisticMensagens.map((m, i) => {
                   const isMe = m.autor === "funcionario";
-                  const prev = i > 0 ? mensagens[i - 1] : null;
+                  const prev = i > 0 ? optimisticMensagens[i - 1] : null;
                   const showDate =
                     !prev ||
                     new Date(m.criadoEm).toDateString() !==
