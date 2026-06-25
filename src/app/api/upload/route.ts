@@ -221,8 +221,6 @@ export async function POST(req: Request) {
   const arquivoPath = `${dir}/${id}-original.${processed.ext}`;
   const thumbPath = `${dir}/${id}-thumb.${processed.ext}`;
 
-  // Se qualquer passo entre o primeiro saveFile e o insert falhar, apaga os
-  // arquivos ja gravados pra nao deixar orfao no Volume.
   let foto;
   try {
     await saveFile(arquivoPath, processed.original);
