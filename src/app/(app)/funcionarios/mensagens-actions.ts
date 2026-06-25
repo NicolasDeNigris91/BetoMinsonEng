@@ -16,12 +16,16 @@ import {
   actionError,
   type VoidActionResult,
 } from "@/lib/action-result";
+import { rateLimit } from "@/lib/rate-limit";
 
 const textoSchema = z
   .string()
   .trim()
   .min(1, "Mensagem vazia.")
   .max(2000, "Mensagem muito longa (máx. 2000 caracteres).");
+
+const FUNC_MSG_WINDOW_MS = 60 * 1000;
+const FUNC_MSG_MAX = 20;
 
 // Protege contra achadoId forjado em mensagens com referencia.
 async function achadoPertenceAoFuncionario(
@@ -100,6 +104,17 @@ export async function enviarMensagemFuncionarioAction(
   texto: string,
   achadoId?: string,
 ): Promise<VoidActionResult> {
+  const limit = await rateLimit({
+    key: `f-msg:${token}`,
+    limit: FUNC_MSG_MAX,
+    windowMs: FUNC_MSG_WINDOW_MS,
+  });
+  if (!limit.allowed) {
+    return actionError(
+      `Muitas mensagens. Tente novamente em ${limit.retryAfterSec}s.`,
+    );
+  }
+
   const parsed = textoSchema.safeParse(texto);
   if (!parsed.success) {
     return actionError(parsed.error.issues[0]?.message ?? "Mensagem inválida.");
