@@ -12,6 +12,7 @@ import {
   unidades,
 } from "@/db/schema";
 import { env } from "@/lib/env";
+import { formatDateBR } from "@/lib/format";
 import { parseUuidOrNotFound } from "@/lib/route-params";
 import { FuncionarioSharePanel } from "./share-panel";
 import { HeaderActionsMenu } from "./header-actions-menu";
@@ -167,6 +168,18 @@ export default async function FuncionarioDetailPage({
           <h1 className="text-[26px] font-extrabold leading-tight tracking-[-0.015em]">
             {funcionario.nome}
           </h1>
+          {desativado ? (
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-red-300 bg-red-50 px-2 py-[1px] font-mono text-[10px] uppercase tracking-[0.08em] text-red-700 dark:bg-red-950/40 dark:text-red-400">
+                desativado
+              </span>
+              {funcionario.desativadoEm ? (
+                <span className="font-mono text-[10px] tracking-[0.06em] uppercase text-muted-foreground">
+                  em {formatDateBR(funcionario.desativadoEm)}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           <p className="mt-2 font-mono text-[10px] tracking-[0.06em] uppercase text-muted-foreground">
             <span className="tabular-nums text-foreground">
               {String(atribuidos.length).padStart(2, "0")}
@@ -179,7 +192,7 @@ export default async function FuncionarioDetailPage({
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          {atribuidos.length > 0 ? (
+          {atribuidos.length > 0 && !desativado ? (
             <AtribuirAchadosDialog
               funcionarioId={funcionario.id}
               empreendimentos={empreendimentosDisponiveis}
@@ -216,14 +229,18 @@ export default async function FuncionarioDetailPage({
               <p className="mt-3 font-mono text-[10px] tracking-[0.18em] uppercase text-muted-foreground">
                 Sem achados atribuídos
               </p>
-              <p className="mt-1 mb-4 text-sm text-muted-foreground">
-                Atribua achados de qualquer empreendimento pra começar.
-              </p>
-              <AtribuirAchadosDialog
-                funcionarioId={funcionario.id}
-                empreendimentos={empreendimentosDisponiveis}
-                primary
-              />
+              {desativado ? null : (
+                <>
+                  <p className="mt-1 mb-4 text-sm text-muted-foreground">
+                    Atribua achados de qualquer empreendimento pra começar.
+                  </p>
+                  <AtribuirAchadosDialog
+                    funcionarioId={funcionario.id}
+                    empreendimentos={empreendimentosDisponiveis}
+                    primary
+                  />
+                </>
+              )}
             </div>
           </div>
         ) : (
