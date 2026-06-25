@@ -15,7 +15,7 @@ import { getClientIp } from "@/lib/client-ip";
 import { detectImageKind } from "@/lib/image-mime";
 import { processImage } from "@/lib/images";
 import { rateLimit } from "@/lib/rate-limit";
-import { saveFile } from "@/lib/storage";
+import { deleteFile, saveFile } from "@/lib/storage";
 
 const MAX_BYTES = 15 * 1024 * 1024;
 const UPLOAD_RATE_LIMIT = 200;
@@ -221,26 +221,33 @@ export async function POST(req: Request) {
   const arquivoPath = `${dir}/${id}-original.${processed.ext}`;
   const thumbPath = `${dir}/${id}-thumb.${processed.ext}`;
 
-  await saveFile(arquivoPath, processed.original);
-  await saveFile(thumbPath, processed.thumb);
+  let foto;
+  try {
+    await saveFile(arquivoPath, processed.original);
+    await saveFile(thumbPath, processed.thumb);
 
-  const existing = await db
-    .select({ ordem: fotos.ordem })
-    .from(fotos)
-    .where(eq(fotos.achadoEventoId, evento.id));
-  const nextOrdem =
-    existing.length > 0 ? Math.max(...existing.map((e) => e.ordem)) + 1 : 0;
+    const existing = await db
+      .select({ ordem: fotos.ordem })
+      .from(fotos)
+      .where(eq(fotos.achadoEventoId, evento.id));
+    const nextOrdem =
+      existing.length > 0 ? Math.max(...existing.map((e) => e.ordem)) + 1 : 0;
 
-  const [foto] = await db
-    .insert(fotos)
-    .values({
-      achadoEventoId: evento.id,
-      arquivoPath,
-      thumbPath,
-      legenda: null,
-      ordem: nextOrdem,
-    })
-    .returning();
+    [foto] = await db
+      .insert(fotos)
+      .values({
+        achadoEventoId: evento.id,
+        arquivoPath,
+        thumbPath,
+        legenda: null,
+        ordem: nextOrdem,
+      })
+      .returning();
+  } catch (err) {
+    await deleteFile(arquivoPath).catch(() => {});
+    await deleteFile(thumbPath).catch(() => {});
+    throw err;
+  }
 
   return NextResponse.json({ foto });
 }
