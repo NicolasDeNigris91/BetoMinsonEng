@@ -280,6 +280,7 @@ export function EngenhariaSheet({ token, naoLidasIniciais }: Props) {
                 placeholder="Escrever…"
                 rows={1}
                 disabled={sending}
+                enterKeyHint="send"
                 className="flex-1 resize-none rounded-full border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30"
               />
               <button
