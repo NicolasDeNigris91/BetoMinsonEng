@@ -199,7 +199,13 @@ export async function atribuirAchadosAction(
   achadoIds: string[],
 ): Promise<VoidActionResult> {
   await requireMutation();
-  await funcionarioContext(funcionarioId);
+  const ctx = await funcionarioContext(funcionarioId);
+
+  if (ctx.desativadoEm) {
+    return actionError(
+      "Funcionário desativado. Reative para atribuir achados.",
+    );
+  }
 
   if (achadoIds.length === 0) return;
 
