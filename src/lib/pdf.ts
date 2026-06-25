@@ -42,9 +42,39 @@ const DEFAULT_FOOTER = `
     Página <span class="pageNumber"></span> de <span class="totalPages"></span>
   </div>`;
 
+const MAX_CONCURRENT_PDFS = 4;
+let activePdfRenders = 0;
+const pdfQueue: Array<() => void> = [];
+
+function acquirePdfSlot(): Promise<void> {
+  if (activePdfRenders < MAX_CONCURRENT_PDFS) {
+    activePdfRenders++;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => pdfQueue.push(resolve));
+}
+
+function releasePdfSlot(): void {
+  const next = pdfQueue.shift();
+  if (next) next();
+  else activePdfRenders--;
+}
+
 export async function renderHtmlToPdf(
   html: string,
   options: RenderPdfOptions = {},
+): Promise<Buffer> {
+  await acquirePdfSlot();
+  try {
+    return await renderHtmlToPdfInternal(html, options);
+  } finally {
+    releasePdfSlot();
+  }
+}
+
+async function renderHtmlToPdfInternal(
+  html: string,
+  options: RenderPdfOptions,
 ): Promise<Buffer> {
   const browser = await getBrowser();
   const context = await browser.newContext({ viewport: { width: 794, height: 1123 } });
